@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Share files in context.getExternalFilesDir("documents") -->
+    <external-files-path name="documents" path="documents" />
+    <!-- Share files in context.filesDir -->
+    <files-path name="internal_documents" path="." />
+</paths>

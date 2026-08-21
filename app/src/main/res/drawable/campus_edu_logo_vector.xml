@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Dark slate blue squircle background container -->
+    <path
+        android:fillColor="#233252"
+        android:pathData="M24,12 L84,12 C90.6,12 96,17.4 96,24 L96,84 C96,90.6 90.6,96 84,96 L24,96 C17.4,96 12,90.6 12,84 L12,24 C12,17.4 17.4,12 24,12 Z" />
+
+    <!-- Graduation Cap Top Diamond -->
+    <path
+        android:fillColor="#C5D5FA"
+        android:pathData="M54,33 L82,45 L54,57 L26,45 Z" />
+
+    <!-- Cap Base (Underneath Top Diamond) -->
+    <path
+        android:fillColor="#C5D5FA"
+        android:pathData="M36,52.5 L36,62 C36,69 43,72 54,72 C65,72 72,69 72,62 L72,52.5 C67.5,55.5 61,57.2 54,57.2 C47,57.2 40.5,55.5 36,52.5 Z" />
+
+    <!-- Right Side Tassel -->
+    <path
+        android:fillColor="#C5D5FA"
+        android:pathData="M75,47 L75,64 M73,64 L77,64 L77,69 L73,69 Z" />
+
+</vector>

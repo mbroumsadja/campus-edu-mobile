@@ -1,0 +1,6 @@
+{
+  "name": "Campus Edu Docs",
+  "description": "Module de recherche et téléchargement de documents académiques (cours, sujets d'examens et corrigés) pour Campus Edu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
