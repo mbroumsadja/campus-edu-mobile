@@ -253,20 +253,60 @@ class DownloadRepository(private val service: CampusEduService) {
 
     fun openFile(context: Context, file: File) {
         try {
+            if (!file.exists()) {
+                Toast.makeText(context, "Le fichier est introuvable sur l'appareil.", Toast.LENGTH_SHORT).show()
+                return
+            }
             val authority = "${context.packageName}.fileprovider"
             val uri = FileProvider.getUriForFile(context, authority, file)
             
             val extension = file.extension.lowercase()
-            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "*/*"
+            val mimeType = if (extension == "pdf") "application/pdf" else (MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/pdf")
             
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, mimeType)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
+            try {
+                context.startActivity(intent)
+            } catch (_: Exception) {
+                val chooser = Intent.createChooser(intent, "Ouvrir le document PDF").apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            }
         } catch (e: Exception) {
             Toast.makeText(context, "Impossible d'ouvrir le fichier. Aucun lecteur compatible trouvé.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun shareFile(context: Context, file: File, title: String? = null) {
+        try {
+            if (!file.exists()) {
+                Toast.makeText(context, "Le fichier à partager est introuvable.", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val authority = "${context.packageName}.fileprovider"
+            val uri = FileProvider.getUriForFile(context, authority, file)
+            
+            val extension = file.extension.lowercase()
+            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/pdf"
+            
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = mimeType
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, title ?: file.nameWithoutExtension)
+                putExtra(Intent.EXTRA_TEXT, "Voici le document : ${title ?: file.nameWithoutExtension}")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            
+            val chooser = Intent.createChooser(shareIntent, "Partager le document via").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Impossible de partager le document : ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 }

@@ -2,18 +2,24 @@ package com.example.ui.search
 
 import android.content.Context
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import com.example.ui.catalogue.CatalogueScreen
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,21 +30,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.example.R
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.*
 import com.example.data.repository.DownloadStatus
+import com.example.ui.theme.FiliereColorPalette
+import com.example.ui.theme.FiliereColorProvider
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
@@ -68,6 +82,12 @@ fun SearchScreen(
     var showFilters by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showTutorialDialog by remember { mutableStateOf(false) }
+    // When a document finishes downloading, automatically open with Android PDF Viewer
+    LaunchedEffect(Unit) {
+        viewModel.newlyDownloadedDocFlow.collect { localDoc ->
+            viewModel.openLocalFile(context, localDoc)
+        }
+    }
 
     val activeFilterCount = listOfNotNull(
         selectedEcole,
@@ -85,138 +105,198 @@ fun SearchScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = com.example.R.drawable.campus_edu_logo_vector),
-                            contentDescription = "Logo Campus Edu",
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
-                        Column {
-                            Text(
-                                text = "Campus Edu Docs",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = "Université de Garoua",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp
-                            )
+                    Column {
+                        when (selectedTab) {
+                            0 -> {
+                                Text(
+                                    text = "Catalogue des Cours",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 17.sp
+                                )
+                                Text(
+                                    text = "campus educatif-univ-Garoua",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            1 -> {
+                                Text(
+                                    text = "Recherche Académique",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 17.sp
+                                )
+                                Text(
+                                    text = "Université de Garoua",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = "Documents Téléchargés",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 17.sp
+                                )
+                                Text(
+                                    text = "${allLocalFiles.size} fichier(s) hors-ligne",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 },
-                actions = {
-                    // Tutorial Action Button
-                    IconButton(
-                        onClick = { showTutorialDialog = true },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.HelpOutline,
-                            contentDescription = "Tutoriel d'utilisation et de recherche",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    // Auth Status Badge
-                    val hasToken = accessToken.isNotEmpty()
-                    AssistChip(
-                        onClick = { /* Nothing happens on click */ },
-                        label = {
-                            Text(
-                                text = if (hasToken) "Authentifié" else "Accès Public",
-                                fontSize = 11.sp
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (hasToken) Icons.Default.VpnKey else Icons.Default.LockOpen,
-                                contentDescription = "Token Status",
-                                modifier = Modifier.size(14.dp),
-                                tint = if (hasToken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (hasToken) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f)
-                        ),
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                },
+                actions = {},
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
             ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Explorer"
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = "Explorer",
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                ) {
+                    Divider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        thickness = 0.5.dp
                     )
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = {
-                        BadgedBox(
-                            badge = {
-                                if (allLocalFiles.isNotEmpty()) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ) {
-                                        Text("${allLocalFiles.size}")
-                                    }
-                                }
-                            }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .padding(horizontal = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Tab 0: Première page: Catalogue de disponibilité
+                        val tab0Selected = selectedTab == 0
+                        Surface(
+                            onClick = { selectedTab = 0 },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (tab0Selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Folder,
-                                contentDescription = "Téléchargés"
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoStories,
+                                    contentDescription = "Catalogue",
+                                    tint = if (tab0Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Catalogue",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (tab0Selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (tab0Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    },
-                    label = {
-                        Text(
-                            text = "Téléchargés",
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        // Tab 1: Recherche textuelle & filtres
+                        val tab1Selected = selectedTab == 1
+                        Surface(
+                            onClick = { selectedTab = 1 },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (tab1Selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Recherche",
+                                    tint = if (tab1Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Recherche",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (tab1Selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (tab1Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        // Tab 2: Téléchargés
+                        val tab2Selected = selectedTab == 2
+                        Surface(
+                            onClick = { selectedTab = 2 },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (tab2Selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BadgedBox(
+                                    badge = {
+                                        if (allLocalFiles.isNotEmpty()) {
+                                            Badge(
+                                                containerColor = MaterialTheme.colorScheme.primary,
+                                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                            ) {
+                                                Text(
+                                                    text = "${allLocalFiles.size}",
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Folder,
+                                        contentDescription = "Téléchargés",
+                                        tint = if (tab2Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "Téléchargés",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (tab2Selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (tab2Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         modifier = modifier.fillMaxSize()
@@ -226,15 +306,28 @@ fun SearchScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            if (selectedTab == 1) {
-                DownloadedFilesSection(
-                    localFiles = allLocalFiles,
-                    onOpenFile = { viewModel.openLocalFile(context, it) },
-                    onDeleteFile = { viewModel.deleteLocalFile(context, it) }
-                )
-            } else {
-                // Search Content with scrollable search header when results are loaded
-                val searchHeaderContent = @Composable {
+            when (selectedTab) {
+                0 -> {
+                    // Page 1 : Première page de catalogue de la disponibilité des cours sur la plateforme
+                    CatalogueScreen(
+                        viewModel = viewModel,
+                        onNavigateToSearch = { selectedTab = 1 }
+                    )
+                }
+                2 -> {
+                    // Tab 2: Fichiers téléchargés en local
+                    DownloadedFilesSection(
+                        localFiles = allLocalFiles,
+                        onOpenFile = { fileDoc ->
+                            viewModel.openLocalFile(context, fileDoc)
+                        },
+                        onShareFile = { viewModel.shareLocalFile(context, it) },
+                        onDeleteFile = { viewModel.deleteLocalFile(context, it) }
+                    )
+                }
+                else -> {
+                    // Tab 1: Recherche textuelle & filtres
+                    val searchHeaderContent = @Composable {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -260,6 +353,8 @@ fun SearchScreen(
                                         Text(
                                             text = "Rechercher un document...",
                                             fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     },
@@ -275,6 +370,21 @@ fun SearchScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.padding(end = 4.dp)
                                         ) {
+                                            if (resultCount != null && uiState is SearchUiState.Success) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                                    modifier = Modifier.padding(end = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "$resultCount",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
                                             if (isNetworkLoading) {
                                                 CircularProgressIndicator(
                                                     modifier = Modifier
@@ -304,6 +414,12 @@ fun SearchScreen(
                                         .testTag("search_field_q"),
                                     singleLine = true,
                                     shape = RoundedCornerShape(12.dp),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(
+                                        onSearch = {
+                                            // Search submitted
+                                        }
+                                    ),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                                         unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
@@ -358,10 +474,10 @@ fun SearchScreen(
                                 Column {
                                     Spacer(modifier = Modifier.height(10.dp))
 
-                                    // Panneau de Filtres UI
+                                    // Ligne 1: École & Filière
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         // École selector
                                         Box(modifier = Modifier.weight(1f)) {
@@ -369,7 +485,6 @@ fun SearchScreen(
                                                 label = selectedEcole?.let { it.sigle ?: it.nom } ?: "École (Toutes)",
                                                 isSelected = selectedEcole != null,
                                                 onClick = {
-                                                    viewModel.loadEcoles()
                                                     ecoleExpanded = true
                                                 },
                                                 onClear = { viewModel.selectEcole(null) },
@@ -379,7 +494,13 @@ fun SearchScreen(
 
                                             DropdownMenu(
                                                 expanded = ecoleExpanded,
-                                                onDismissRequest = { ecoleExpanded = false }
+                                                onDismissRequest = { ecoleExpanded = false },
+                                                shape = RoundedCornerShape(14.dp),
+                                                modifier = Modifier
+                                                    .widthIn(min = 240.dp, max = 320.dp)
+                                                    .heightIn(max = 280.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(MaterialTheme.colorScheme.surface)
                                             ) {
                                                 DropdownMenuItem(
                                                     text = { Text("Toutes les écoles", fontWeight = FontWeight.Bold) },
@@ -408,11 +529,27 @@ fun SearchScreen(
                                                     )
                                                 } else {
                                                     ecoles.forEach { ecole ->
+                                                        val isFs = ecole.nom.equals("FS", ignoreCase = true) ||
+                                                                ecole.sigle?.equals("FS", ignoreCase = true) == true ||
+                                                                ecole.nom.contains("Sciences", ignoreCase = true)
                                                         DropdownMenuItem(
+                                                            leadingIcon = if (isFs) {
+                                                                {
+                                                                    Image(
+                                                                        painter = painterResource(id = R.drawable.logo_fs),
+                                                                        contentDescription = "Logo FS",
+                                                                        modifier = Modifier
+                                                                            .size(24.dp)
+                                                                            .clip(CircleShape),
+                                                                        contentScale = ContentScale.Fit
+                                                                    )
+                                                                }
+                                                            } else null,
                                                             text = {
                                                                 Column {
                                                                     Text(
-                                                                        text = if (!ecole.sigle.isNullOrBlank()) "${ecole.sigle} - ${ecole.nom}" else ecole.nom,
+                                                                        text = if (ecole.nom.equals("FS", ignoreCase = true)) "FS - Faculté des Sciences"
+                                                                        else if (!ecole.sigle.isNullOrBlank()) "${ecole.sigle} - ${ecole.nom}" else ecole.nom,
                                                                         fontWeight = FontWeight.SemiBold,
                                                                         fontSize = 13.sp
                                                                     )
@@ -437,7 +574,6 @@ fun SearchScreen(
                                                 label = selectedFiliere?.let { it.code } ?: "Filière (Toutes)",
                                                 isSelected = selectedFiliere != null,
                                                 onClick = {
-                                                    viewModel.loadFilieres()
                                                     filiereExpanded = true
                                                 },
                                                 onClear = { viewModel.selectFiliere(null) },
@@ -447,7 +583,13 @@ fun SearchScreen(
 
                                             DropdownMenu(
                                                 expanded = filiereExpanded,
-                                                onDismissRequest = { filiereExpanded = false }
+                                                onDismissRequest = { filiereExpanded = false },
+                                                shape = RoundedCornerShape(14.dp),
+                                                modifier = Modifier
+                                                    .widthIn(min = 260.dp, max = 340.dp)
+                                                    .heightIn(max = 300.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(MaterialTheme.colorScheme.surface)
                                             ) {
                                                 DropdownMenuItem(
                                                     text = { Text("Toutes les filières", fontWeight = FontWeight.Bold) },
@@ -476,7 +618,15 @@ fun SearchScreen(
                                                     )
                                                 } else {
                                                     filieres.forEach { filiere ->
+                                                        val filierePal = FiliereColorProvider.getPalette(filiere.code, filiere.nom)
                                                         DropdownMenuItem(
+                                                            leadingIcon = {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(10.dp)
+                                                                        .background(filierePal.accentColor, CircleShape)
+                                                                )
+                                                            },
                                                             text = {
                                                                 Column {
                                                                     Text("${filiere.code} - ${filiere.nom}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
@@ -494,17 +644,70 @@ fun SearchScreen(
                                                 }
                                             }
                                         }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Ligne 2: Niveau Filter Selector & Document Type Selector
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Niveau Filter Selector (L1 - M2)
+                                        Text(
+                                            text = "Niveau:",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(end = 2.dp)
+                                        )
+                                        val niveaux = listOf("L1", "L2", "L3", "M1", "M2")
+                                        niveaux.forEach { niv ->
+                                            val isSelected = selectedNiveau == niv
+                                            Surface(
+                                                onClick = {
+                                                    if (isSelected) {
+                                                        viewModel.selectNiveau("Tous")
+                                                    } else {
+                                                        viewModel.selectNiveau(niv)
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                                border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = niv,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .width(1.dp)
+                                                .height(24.dp)
+                                                .background(MaterialTheme.colorScheme.outlineVariant)
+                                        )
 
                                         // Document Type Selector
-                                        Box(modifier = Modifier.weight(1f)) {
+                                        Box(modifier = Modifier.widthIn(min = 120.dp, max = 150.dp)) {
                                             var typeExpanded by remember { mutableStateOf(false) }
                                             FilterSelectButton(
                                                 label = when (selectedType) {
                                                     "cours" -> "Cours"
                                                     "sujet" -> "Sujets Exam"
-                                                    "pdf" -> "PDF"
-                                                    "video" -> "Vidéo"
-                                                    "slide" -> "Slides"
                                                     "partiel" -> "Partiel"
                                                     "rattrapage" -> "Rattrapage"
                                                     "terminal" -> "Terminal"
@@ -521,7 +724,13 @@ fun SearchScreen(
 
                                             DropdownMenu(
                                                 expanded = typeExpanded,
-                                                onDismissRequest = { typeExpanded = false }
+                                                onDismissRequest = { typeExpanded = false },
+                                                shape = RoundedCornerShape(14.dp),
+                                                modifier = Modifier
+                                                    .widthIn(min = 200.dp, max = 280.dp)
+                                                    .heightIn(max = 280.dp)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(MaterialTheme.colorScheme.surface)
                                             ) {
                                                 DropdownMenuItem(
                                                     text = { Text("Tous les types", fontWeight = FontWeight.Bold) },
@@ -529,26 +738,14 @@ fun SearchScreen(
                                                 )
                                                 Divider()
                                                 DropdownMenuItem(
-                                                    text = { Text("Tous les cours", fontSize = 13.sp) },
+                                                    text = { Text("Cours", fontSize = 13.sp, fontWeight = FontWeight.Medium) },
                                                     onClick = { viewModel.selectType("cours"); typeExpanded = false }
                                                 )
                                                 DropdownMenuItem(
-                                                    text = { Text("Tous les sujets d'examen", fontSize = 13.sp) },
+                                                    text = { Text("Tous les sujets d'examen", fontSize = 13.sp, fontWeight = FontWeight.Medium) },
                                                     onClick = { viewModel.selectType("sujet"); typeExpanded = false }
                                                 )
                                                 Divider()
-                                                DropdownMenuItem(
-                                                    text = { Text("Format PDF", fontSize = 13.sp) },
-                                                    onClick = { viewModel.selectType("pdf"); typeExpanded = false }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text("Vidéo", fontSize = 13.sp) },
-                                                    onClick = { viewModel.selectType("video"); typeExpanded = false }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text("Support Slide", fontSize = 13.sp) },
-                                                    onClick = { viewModel.selectType("slide"); typeExpanded = false }
-                                                )
                                                 DropdownMenuItem(
                                                     text = { Text("Sujet Partiel", fontSize = 13.sp) },
                                                     onClick = { viewModel.selectType("partiel"); typeExpanded = false }
@@ -572,109 +769,6 @@ fun SearchScreen(
                                             }
                                         }
                                     }
-
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    // Niveau Filter Selector (L1 - M2)
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(top = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            text = "Niveau:",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(end = 2.dp)
-                                        )
-                                        val niveaux = listOf("L1", "L2", "L3", "M1", "M2")
-                                        niveaux.forEach { niv ->
-                                            val isSelected = selectedNiveau == niv
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(
-                                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                                        else MaterialTheme.colorScheme.surfaceVariant
-                                                    )
-                                                    .clickable {
-                                                        if (isSelected) {
-                                                            viewModel.selectNiveau("Tous")
-                                                        } else {
-                                                            viewModel.selectNiveau(niv)
-                                                        }
-                                                    }
-                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                                            ) {
-                                                Text(
-                                                    text = niv,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary
-                                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                val resultCountContent = @Composable {
-                    if (resultCount != null && uiState is SearchUiState.Success) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Description,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "$resultCount document(s) trouvé(s)",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    if (isNetworkLoading) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-
-                                if (!showFilters) {
-                                    TextButton(
-                                        onClick = { showFilters = true },
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(24.dp)
-                                    ) {
-                                        Text(
-                                            text = if (activeFilterCount > 0) "Filtres ($activeFilterCount) ⚙️" else "Ajuster filtres ⚙️",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -691,12 +785,17 @@ fun SearchScreen(
                             pagination = pagination,
                             headerContent = {
                                 searchHeaderContent()
-                                resultCountContent()
                             },
                             onDownloadCours = { viewModel.downloadCours(context, it) },
                             onDownloadSujet = { sujet, corrige -> viewModel.downloadSujet(context, sujet, corrige) },
-                            onOpenCours = { viewModel.openDownloadedCours(context, it) },
-                            onOpenSujet = { sujet, corrige -> viewModel.openDownloadedSujet(context, sujet, corrige) },
+                            onOpenCours = { cours ->
+                                viewModel.openDownloadedCours(context, cours)
+                            },
+                            onOpenSujet = { sujet, corrige ->
+                                viewModel.openDownloadedSujet(context, sujet, corrige)
+                            },
+                            onShareCours = { viewModel.shareDownloadedCours(context, it) },
+                            onShareSujet = { sujet, corrige -> viewModel.shareDownloadedSujet(context, sujet, corrige) },
                             onDeleteCours = { viewModel.deleteDownloadedCours(context, it) },
                             onDeleteSujet = { sujet, corrige -> viewModel.deleteDownloadedSujet(context, sujet, corrige) },
                             onLoadMore = { viewModel.loadMore() }
@@ -706,7 +805,6 @@ fun SearchScreen(
                         // In non-success states (Idle, Loading, Empty, Error), show search bar at top and state card below
                         Column(modifier = Modifier.fillMaxSize()) {
                             searchHeaderContent()
-                            resultCountContent()
 
                             Box(
                                 modifier = Modifier
@@ -715,18 +813,7 @@ fun SearchScreen(
                             ) {
                                 when (state) {
                                     is SearchUiState.Idle -> {
-                                        StateDisplayCard(
-                                            icon = Icons.Default.School,
-                                            badgeBackgroundColor = Color.Transparent,
-                                            iconTint = MaterialTheme.colorScheme.primary,
-                                            drawableRes = com.example.R.drawable.campus_edu_logo_vector,
-                                            title = "Prêt à chercher !",
-                                            titleColor = MaterialTheme.colorScheme.primary,
-                                            description = "Saisissez un mot-clé (code UE, nom du cours, enseignant) ou utilisez les filtres pour explorer les cours et épreuves de Campus Edu.",
-                                            buttonText = "Comment rechercher ? (Tutoriel)",
-                                            buttonIcon = Icons.Default.HelpOutline,
-                                            onButtonClick = { showTutorialDialog = true }
-                                        )
+                                        // Clean empty view before search is performed
                                     }
                                     is SearchUiState.Loading -> {
                                         Box(
@@ -760,19 +847,14 @@ fun SearchScreen(
                                         }
                                     }
                                     is SearchUiState.Empty -> {
-                                        val desc = if (!state.queryOrFilter.isNullOrBlank()) {
-                                            "Aucun document trouvé pour « ${state.queryOrFilter} ». La recherche ne retourne aucun résultat. Modifiez vos mots-clés ou réinitialisez les filtres."
-                                        } else {
-                                            "Recherche vide : Aucun cours ni épreuve ne correspond aux filtres sélectionnés. Essayez d'élargir vos critères de recherche."
-                                        }
                                         StateDisplayCard(
                                             icon = Icons.Default.SearchOff,
-                                            badgeBackgroundColor = Color(0xFFFFF3E0),
-                                            iconTint = Color(0xFFE65100),
-                                            title = "Recherche vide — Aucun résultat",
-                                            titleColor = Color(0xFFE65100),
-                                            description = desc,
-                                            buttonText = "Réinitialiser la recherche",
+                                            badgeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            iconTint = MaterialTheme.colorScheme.primary,
+                                            title = "Aucun document trouvé",
+                                            titleColor = MaterialTheme.colorScheme.onSurface,
+                                            description = "Modifiez vos filtres ou mots-clés",
+                                            buttonText = "Réinitialiser les filtres",
                                             buttonIcon = Icons.Default.Refresh,
                                             onButtonClick = {
                                                 viewModel.updateSearchQuery("")
@@ -788,11 +870,11 @@ fun SearchScreen(
                                         Column {
                                             StateDisplayCard(
                                                 icon = Icons.Default.WifiOff,
-                                                badgeBackgroundColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                                                iconTint = MaterialTheme.colorScheme.error,
-                                                title = "Mode Hors Connexion — Erreur Réseau",
-                                                titleColor = MaterialTheme.colorScheme.error,
-                                                description = "Impossible de joindre le serveur. Vous pouvez accéder à tous vos documents déjà téléchargés ci-dessous.",
+                                                badgeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                iconTint = Color(0xFF64748B),
+                                                title = "Mode hors-ligne actif",
+                                                titleColor = MaterialTheme.colorScheme.onSurface,
+                                                description = "Accédez à vos documents enregistrés",
                                                 buttonText = "Réessayer la connexion",
                                                 buttonIcon = Icons.Default.Refresh,
                                                 onButtonClick = { viewModel.performSearch() }
@@ -800,7 +882,12 @@ fun SearchScreen(
                                             Spacer(modifier = Modifier.height(8.dp))
                                             DownloadedFilesSection(
                                                 localFiles = allLocalFiles,
-                                                onOpenFile = { viewModel.openLocalFile(context, it) },
+                                                onOpenFile = { fileDoc ->
+                                                    viewModel.openLocalFile(context, fileDoc)
+                                                },
+                                                onShareFile = { fileDoc ->
+                                                    viewModel.shareLocalFile(context, fileDoc)
+                                                },
                                                 onDeleteFile = { viewModel.deleteLocalFile(context, it) }
                                             )
                                         }
@@ -808,11 +895,11 @@ fun SearchScreen(
                                     is SearchUiState.ServerError -> {
                                         StateDisplayCard(
                                             icon = Icons.Default.Dns,
-                                            badgeBackgroundColor = Color(0xFFF3E5F5),
-                                            iconTint = Color(0xFF6A1B9A),
-                                            title = "Erreur Serveur (HTTP ${state.code ?: 500})",
-                                            titleColor = Color(0xFF6A1B9A),
-                                            description = state.message,
+                                            badgeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            iconTint = Color(0xFF64748B),
+                                            title = "Serveur indisponible",
+                                            titleColor = MaterialTheme.colorScheme.onSurface,
+                                            description = "Veuillez réessayer dans un instant",
                                             buttonText = "Réessayer",
                                             buttonIcon = Icons.Default.Refresh,
                                             onButtonClick = { viewModel.performSearch() }
@@ -820,12 +907,12 @@ fun SearchScreen(
                                     }
                                     is SearchUiState.Error -> {
                                         StateDisplayCard(
-                                            icon = Icons.Default.ReportProblem,
-                                            badgeBackgroundColor = Color(0xFFFFEBEE),
-                                            iconTint = MaterialTheme.colorScheme.error,
-                                            title = "Erreur de chargement",
-                                            titleColor = MaterialTheme.colorScheme.error,
-                                            description = state.message,
+                                            icon = Icons.Default.Info,
+                                            badgeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            iconTint = Color(0xFF64748B),
+                                            title = "Chargement impossible",
+                                            titleColor = MaterialTheme.colorScheme.onSurface,
+                                            description = "Vérifiez vos critères et réessayez",
                                             buttonText = "Réessayer",
                                             buttonIcon = Icons.Default.Refresh,
                                             onButtonClick = { viewModel.performSearch() }
@@ -840,6 +927,7 @@ fun SearchScreen(
             }
         }
     }
+}
 
     if (showTutorialDialog) {
         SearchTutorialDialog(
@@ -1292,7 +1380,7 @@ fun StateDisplayCard(
                 Button(
                     onClick = onButtonClick,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = titleColor)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     if (buttonIcon != null) {
                         Icon(
@@ -1321,6 +1409,8 @@ fun DocumentList(
     onDownloadSujet: (Sujet, Boolean) -> Unit,
     onOpenCours: (Cours) -> Unit,
     onOpenSujet: (Sujet, Boolean) -> Unit,
+    onShareCours: (Cours) -> Unit = {},
+    onShareSujet: (Sujet, Boolean) -> Unit = { _, _ -> },
     onDeleteCours: (Cours) -> Unit,
     onDeleteSujet: (Sujet, Boolean) -> Unit,
     onLoadMore: () -> Unit
@@ -1336,7 +1426,7 @@ fun DocumentList(
             }
         }
 
-        items(ues, key = { "ue_card_${it.id}" }) { ue ->
+        itemsIndexed(ues, key = { index, ue -> "ue_card_${ue.id}_$index" }) { _, ue ->
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 UeUnifiedDocumentCard(
                     ue = ue,
@@ -1346,6 +1436,8 @@ fun DocumentList(
                     onDownloadSujet = onDownloadSujet,
                     onOpenCours = onOpenCours,
                     onOpenSujet = onOpenSujet,
+                    onShareCours = onShareCours,
+                    onShareSujet = onShareSujet,
                     onDeleteCours = onDeleteCours,
                     onDeleteSujet = onDeleteSujet
                 )
@@ -1384,6 +1476,8 @@ fun UeUnifiedDocumentCard(
     onDownloadSujet: (Sujet, Boolean) -> Unit,
     onOpenCours: (Cours) -> Unit,
     onOpenSujet: (Sujet, Boolean) -> Unit,
+    onShareCours: (Cours) -> Unit = {},
+    onShareSujet: (Sujet, Boolean) -> Unit = { _, _ -> },
     onDeleteCours: (Cours) -> Unit,
     onDeleteSujet: (Sujet, Boolean) -> Unit
 ) {
@@ -1403,6 +1497,7 @@ fun UeUnifiedDocumentCard(
                 downloadStatus = downloadStatus,
                 onDownload = { onDownloadCours(cours) },
                 onOpen = { onOpenCours(cours) },
+                onShare = { onShareCours(cours) },
                 onDelete = { onDeleteCours(cours) }
             )
         }
@@ -1425,6 +1520,8 @@ fun UeUnifiedDocumentCard(
                 onDownloadCorrige = { onDownloadSujet(sujet, true) },
                 onOpenSujet = { onOpenSujet(sujet, false) },
                 onOpenCorrige = { onOpenSujet(sujet, true) },
+                onShareSujet = { onShareSujet(sujet, false) },
+                onShareCorrige = { onShareSujet(sujet, true) },
                 onDeleteSujet = { onDeleteSujet(sujet, false) },
                 onDeleteCorrige = { onDeleteSujet(sujet, true) }
             )
@@ -1525,6 +1622,7 @@ fun UeHeaderItem(ue: UeWithDocuments) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CoursItemCard(
     ue: UeWithDocuments,
@@ -1533,6 +1631,7 @@ fun CoursItemCard(
     downloadStatus: DownloadStatus,
     onDownload: () -> Unit,
     onOpen: () -> Unit,
+    onShare: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     val formattedCode = remember(ue.code) { formatCodeUe(ue.code) }
@@ -1541,6 +1640,20 @@ fun CoursItemCard(
     }
     val semestreEnCours = remember(ue) {
         if (ue.semestre.isNullOrBlank() || ue.semestre == "Semestre") "Semestre 1" else ue.semestre
+    }
+    val filierePalette = remember(cours.filiereCode, cours.filiereNom, ue.filiereCode, ue.filiereNom, ue.code) {
+        FiliereColorProvider.getPalette(
+            filiereCode = cours.filiereCode ?: ue.filiereCode,
+            filiereNom = cours.filiereNom ?: ue.filiereNom,
+            fallbackText = ue.code
+        )
+    }
+    val filiereLabel = remember(cours.filiereCode, cours.filiereNom, ue.filiereCode, ue.filiereNom, ue.code) {
+        FiliereColorProvider.getDisplayLabel(
+            filiereCode = cours.filiereCode ?: ue.filiereCode,
+            filiereNom = cours.filiereNom ?: ue.filiereNom,
+            fallbackUeCode = ue.code
+        )
     }
 
     Card(
@@ -1557,268 +1670,329 @@ fun CoursItemCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
         ) {
-            // Header: Code UE badge + Download status badge + Type badge with Logo
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Left color stripe for the filière
+            Box(
+                modifier = Modifier
+                    .width(4.5.dp)
+                    .fillMaxHeight()
+                    .background(filierePalette.accentColor)
+            )
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(14.dp)
             ) {
+                // Header: Code UE badge + Filière color badge + Download status badge + Type badge with Logo
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                    FlowRow(
+                        modifier = Modifier.weight(1f, fill = false),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = formattedCode,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    if (cours.deja_telecharge == true || isDownloaded) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFE8F5E9)
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = formattedCode,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        // Filière Color Badge
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = filierePalette.containerColor,
+                            border = BorderStroke(1.dp, filierePalette.borderColor)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF2E7D32),
-                                    modifier = Modifier.size(12.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(filierePalette.accentColor, CircleShape)
                                 )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Téléchargé",
+                                    text = filiereLabel,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2E7D32)
+                                    color = filierePalette.contentColor
                                 )
                             }
+                        }
+
+                        if (cours.deja_telecharge == true || isDownloaded) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFFE8F5E9)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF2E7D32),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Téléchargé",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF2E7D32)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MenuBook,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = (cours.type ?: "COURS").uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         }
                     }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MenuBook,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = (cours.type ?: "COURS").uppercase(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-            }
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Document Title & Description
-            Text(
-                text = cours.titre,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            if (!cours.description.isNullOrEmpty()) {
+                // Document Title & Description
                 Text(
-                    text = cours.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
+                    text = cours.titre,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Badges row: Année, Semestre, Niveau, Taille, Téléchargements
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Année : $anneEnCours",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(text = "•", fontSize = 10.sp, color = Color.Gray)
-                Text(
-                    text = semestreEnCours,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
-                if (ue.niveau != null) {
-                    Text(text = "•", fontSize = 10.sp, color = Color.Gray)
+                if (!cours.description.isNullOrEmpty()) {
                     Text(
-                        text = "Niveau ${ue.niveau}",
+                        text = cours.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Badges flow row: Année, Semestre, Niveau, Taille, Téléchargements
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Année : $anneEnCours",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
-                }
-                if (cours.tailleFichier != null) {
                     Text(text = "•", fontSize = 10.sp, color = Color.Gray)
                     Text(
-                        text = formatFileSize(cours.tailleFichier),
+                        text = semestreEnCours,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Medium
                     )
-                }
-                if ((cours.telechargemements ?: 0) > 0) {
-                    Text(text = "•", fontSize = 10.sp, color = Color.Gray)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Téléchargements",
-                            modifier = Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    if (ue.niveau != null) {
+                        Text(text = "•", fontSize = 10.sp, color = Color.Gray)
                         Text(
-                            text = " ${cours.telechargemements}",
+                            text = "Niveau ${ue.niveau}",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
                     }
-                }
-            }
-
-            // Progress bar if downloading
-            AnimatedVisibility(
-                visible = downloadStatus is DownloadStatus.Progress,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                if (downloadStatus is DownloadStatus.Progress) {
-                    val progressInfo = downloadStatus as DownloadStatus.Progress
-                    val speedText = formatSpeed(progressInfo.speedKBps)
-                    val sizeText = formatProgressDetail(progressInfo.downloadedBytes, progressInfo.totalBytes)
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                shape = RoundedCornerShape(10.dp)
+                    if (cours.tailleFichier != null) {
+                        Text(text = "•", fontSize = 10.sp, color = Color.Gray)
+                        Text(
+                            text = formatFileSize(cours.tailleFichier),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if ((cours.telechargemements ?: 0) > 0) {
+                        Text(text = "•", fontSize = 10.sp, color = Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Téléchargements",
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            .padding(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Download,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (sizeText.isNotBlank()) "Téléchargement ($sizeText)" else "Téléchargement...",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (progressInfo.speedKBps > 0) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                        modifier = Modifier.padding(end = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = speedText,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = "${progressInfo.progress}%",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            Text(
+                                text = " ${cours.telechargemements}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LinearProgressIndicator(
-                            progress = { progressInfo.progress / 100f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                    }
+                }
+
+                // Progress bar if downloading
+                AnimatedVisibility(
+                    visible = downloadStatus is DownloadStatus.Progress,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    if (downloadStatus is DownloadStatus.Progress) {
+                        DownloadProgressItem(
+                            downloadStatus = downloadStatus,
+                            accentColor = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            label = "Téléchargement du cours..."
                         )
                     }
                 }
-            }
 
-            if (downloadStatus is DownloadStatus.Error) {
-                Text(
-                    text = downloadStatus.message,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
+                if (downloadStatus is DownloadStatus.Error) {
+                    Text(
+                        text = downloadStatus.message,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
 
-            if (isDownloaded) {
+                // Interactive action buttons
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.End
+                        .padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .testTag("delete_cours_${cours.id}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Supprimer",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    if (downloadStatus is DownloadStatus.Progress) {
+                        FilledTonalButton(
+                            onClick = {},
+                            enabled = false,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Téléchargement...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    } else if (isDownloaded) {
+                        Button(
+                            onClick = onOpen,
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Lire le cours",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(
+                                onClick = onShare,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .testTag("share_cours_${cours.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Partager cours",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = onDelete,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .testTag("delete_cours_${cours.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Supprimer",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = onDownload,
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Télécharger",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -1826,6 +2000,7 @@ fun CoursItemCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun SujetItemCard(
     ue: UeWithDocuments,
@@ -1838,6 +2013,8 @@ fun SujetItemCard(
     onDownloadCorrige: () -> Unit,
     onOpenSujet: () -> Unit,
     onOpenCorrige: () -> Unit,
+    onShareSujet: () -> Unit = {},
+    onShareCorrige: () -> Unit = {},
     onDeleteSujet: () -> Unit,
     onDeleteCorrige: () -> Unit
 ) {
@@ -1847,6 +2024,20 @@ fun SujetItemCard(
     }
     val semestreEnCours = remember(ue) {
         if (ue.semestre.isNullOrBlank() || ue.semestre == "Semestre") "Semestre 1" else ue.semestre
+    }
+    val filierePalette = remember(sujet.filiereCode, sujet.filiereNom, ue.filiereCode, ue.filiereNom, ue.code) {
+        FiliereColorProvider.getPalette(
+            filiereCode = sujet.filiereCode ?: ue.filiereCode,
+            filiereNom = sujet.filiereNom ?: ue.filiereNom,
+            fallbackText = ue.code
+        )
+    }
+    val filiereLabel = remember(sujet.filiereCode, sujet.filiereNom, ue.filiereCode, ue.filiereNom, ue.code) {
+        FiliereColorProvider.getDisplayLabel(
+            filiereCode = sujet.filiereCode ?: ue.filiereCode,
+            filiereNom = sujet.filiereNom ?: ue.filiereNom,
+            fallbackUeCode = ue.code
+        )
     }
 
     Card(
@@ -1863,81 +2054,126 @@ fun SujetItemCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Header: Code UE badge + Download status badge + Type badge with Logo
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+        ) {
+            // Left color stripe for the filière
+            Box(
+                modifier = Modifier
+                    .width(4.5.dp)
+                    .fillMaxHeight()
+                    .background(filierePalette.accentColor)
+            )
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(14.dp)
             ) {
+                // Header: Code UE badge + Filière color badge + Download status badge + Type badge with Logo
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                    FlowRow(
+                        modifier = Modifier.weight(1f, fill = false),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = formattedCode,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-
-                    if (sujet.deja_telecharge == true || isSujetDownloaded) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFE8F5E9)
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = formattedCode,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        // Filière Color Badge
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = filierePalette.containerColor,
+                            border = BorderStroke(1.dp, filierePalette.borderColor)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.5.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF2E7D32),
-                                    modifier = Modifier.size(12.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(filierePalette.accentColor, CircleShape)
                                 )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Téléchargé",
+                                    text = filiereLabel,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2E7D32)
+                                    color = filierePalette.contentColor
                                 )
                             }
                         }
-                    }
-                }
 
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        if (sujet.deja_telecharge == true || isSujetDownloaded) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFFE8F5E9)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF2E7D32),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Téléchargé",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF2E7D32)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Assignment,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = (sujet.type ?: "EXAMEN").uppercase(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Assignment,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = (sujet.type ?: "EXAMEN").uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
                     }
                 }
-            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -1950,10 +2186,11 @@ fun SujetItemCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Badges row: Année, Semestre, Session, Téléchargements
-            Row(
+            // Badges flow row: Année, Semestre, Session, Téléchargements
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = "Année : $anneEnCours",
@@ -1996,67 +2233,19 @@ fun SujetItemCard(
                 }
             }
 
-            // Progress sujet
-            AnimatedVisibility(visible = sujetDownloadStatus is DownloadStatus.Progress) {
+            // Progress sujet with animated DownloadProgressItem
+            AnimatedVisibility(
+                visible = sujetDownloadStatus is DownloadStatus.Progress,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
                 if (sujetDownloadStatus is DownloadStatus.Progress) {
-                    val progressInfo = sujetDownloadStatus as DownloadStatus.Progress
-                    val speedText = formatSpeed(progressInfo.speedKBps)
-                    val sizeText = formatProgressDetail(progressInfo.downloadedBytes, progressInfo.totalBytes)
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                shape = RoundedCornerShape(10.dp)
-                            )
-                            .padding(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (sizeText.isNotBlank()) "Sujet ($sizeText)" else "Téléchargement du sujet...",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (progressInfo.speedKBps > 0) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                        modifier = Modifier.padding(end = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = speedText,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = "${progressInfo.progress}%",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LinearProgressIndicator(
-                            progress = { progressInfo.progress / 100f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                        )
-                    }
+                    DownloadProgressItem(
+                        downloadStatus = sujetDownloadStatus,
+                        accentColor = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        label = "Téléchargement de l'épreuve..."
+                    )
                 }
             }
 
@@ -2064,30 +2253,107 @@ fun SujetItemCard(
                 Text(
                     text = sujetDownloadStatus.message,
                     color = MaterialTheme.colorScheme.error,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
-            if (isSujetDownloaded) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    IconButton(
-                        onClick = onDeleteSujet,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .testTag("delete_sujet_file_${sujet.id}")
+            // Interactive action buttons for Sujet
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (sujetDownloadStatus is DownloadStatus.Progress) {
+                    FilledTonalButton(
+                        onClick = {},
+                        enabled = false,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Téléchargement...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                } else if (isSujetDownloaded) {
+                    Button(
+                        onClick = onOpenSujet,
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Supprimer sujet",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Default.PictureAsPdf,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Lire l'épreuve",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(
+                            onClick = onShareSujet,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("share_sujet_file_${sujet.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Partager sujet",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = onDeleteSujet,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("delete_sujet_file_${sujet.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Supprimer sujet",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onDownloadSujet,
+                        modifier = Modifier.height(36.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Télécharger l'épreuve",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -2096,20 +2362,12 @@ fun SujetItemCard(
             // Option 2: THE ANSWER SHEET (CORRIGÉ) if available
             if (sujet.avecCorrige == true) {
                 HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 10.dp),
+                    modifier = Modifier.padding(vertical = 12.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            if (isCorrigeDownloaded) {
-                                onOpenCorrige()
-                            } else if (corrigeDownloadStatus !is DownloadStatus.Progress) {
-                                onDownloadCorrige()
-                            }
-                        },
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2129,76 +2387,35 @@ fun SujetItemCard(
                         )
                     }
 
-                    Text(
-                        text = if (isCorrigeDownloaded) "Téléchargé ✅" else "Télécharger 📥",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isCorrigeDownloaded) Color(0xFF2E7D32) else Color(0xFFD84315)
-                    )
+                    if (isCorrigeDownloaded) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFE8F5E9)
+                        ) {
+                            Text(
+                                text = "Téléchargé ✅",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Progress corrigé
-                AnimatedVisibility(visible = corrigeDownloadStatus is DownloadStatus.Progress) {
+                AnimatedVisibility(
+                    visible = corrigeDownloadStatus is DownloadStatus.Progress,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
                     if (corrigeDownloadStatus is DownloadStatus.Progress) {
-                        val progressInfo = corrigeDownloadStatus as DownloadStatus.Progress
-                        val speedText = formatSpeed(progressInfo.speedKBps)
-                        val sizeText = formatProgressDetail(progressInfo.downloadedBytes, progressInfo.totalBytes)
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp)
-                                .background(
-                                    color = Color(0xFFFBE9E7),
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                                .padding(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (sizeText.isNotBlank()) "Corrigé ($sizeText)" else "Téléchargement du corrigé...",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFFD84315),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (progressInfo.speedKBps > 0) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = Color(0xFFFFCCBC),
-                                            modifier = Modifier.padding(end = 6.dp)
-                                        ) {
-                                            Text(
-                                                text = speedText,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFD84315),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = "${progressInfo.progress}%",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFD84315)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LinearProgressIndicator(
-                                progress = { progressInfo.progress / 100f },
-                                color = Color(0xFFD84315),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                            )
-                        }
+                        DownloadProgressItem(
+                            downloadStatus = corrigeDownloadStatus,
+                            accentColor = Color(0xFFD84315),
+                            containerColor = Color(0xFFFBE9E7),
+                            label = "Téléchargement du corrigé..."
+                        )
                     }
                 }
 
@@ -2206,37 +2423,111 @@ fun SujetItemCard(
                     Text(
                         text = corrigeDownloadStatus.message,
                         color = MaterialTheme.colorScheme.error,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
 
-                if (isCorrigeDownloaded) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        IconButton(
-                            onClick = onDeleteCorrige,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .testTag("delete_corrige_file_${sujet.id}")
+                // Corrigé action buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (corrigeDownloadStatus is DownloadStatus.Progress) {
+                        FilledTonalButton(
+                            onClick = {},
+                            enabled = false,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFFD84315)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Téléchargement...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    } else if (isCorrigeDownloaded) {
+                        Button(
+                            onClick = onOpenCorrige,
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFD84315),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Supprimer corrigé",
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(18.dp)
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Lire le corrigé", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(
+                                onClick = onShareCorrige,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .testTag("share_corrige_file_${sujet.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Partager corrigé",
+                                    tint = Color(0xFFD84315),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = onDeleteCorrige,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .testTag("delete_corrige_file_${sujet.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Supprimer corrigé",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onDownloadCorrige,
+                            modifier = Modifier.height(34.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFD84315)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFD84315)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Télécharger corrigé", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
     }
+}
 }
 
 // Dialog to input Authorization Access Token for sujets
@@ -2339,7 +2630,7 @@ fun FilterSelectButton(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(
             width = 1.dp,
@@ -2380,10 +2671,12 @@ fun FilterSelectButton(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DownloadedFilesSection(
     localFiles: List<com.example.data.repository.LocalDownloadedDocument>,
     onOpenFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit,
+    onShareFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
     onDeleteFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2462,14 +2755,16 @@ fun DownloadedFilesSection(
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.heightIn(max = 600.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                items(filteredFiles, key = { it.name }) { doc ->
+                itemsIndexed(filteredFiles, key = { index, doc -> "${doc.name}_$index" }) { _, doc ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenFile(doc) }
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp).fillMaxWidth(),
@@ -2481,7 +2776,7 @@ fun DownloadedFilesSection(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.size(40.dp)
                                 ) {
@@ -2531,28 +2826,46 @@ fun DownloadedFilesSection(
                             ) {
                                 Button(
                                     onClick = { onOpenFile(doc) },
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Visibility,
+                                        imageVector = Icons.Default.MenuBook,
                                         contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Ouvrir", fontSize = 11.sp)
+                                    Text("Lire", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                IconButton(
+                                    onClick = { onShareFile(doc) },
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .testTag("share_local_file_${doc.name}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Partager",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(17.dp)
+                                    )
                                 }
 
                                 IconButton(
                                     onClick = { onDeleteFile(doc) },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(30.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.DeleteOutline,
                                         contentDescription = "Supprimer",
                                         tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(17.dp)
                                     )
                                 }
                             }
@@ -2671,6 +2984,11 @@ fun SearchTutorialDialog(
                         Tab(
                             selected = selectedSection == 2,
                             onClick = { selectedSection = 2 },
+                            text = { Text("Aperçu & PDF", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                        )
+                        Tab(
+                            selected = selectedSection == 3,
+                            onClick = { selectedSection = 3 },
                             text = { Text("Hors-ligne", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
                         )
                     }
@@ -2680,7 +2998,7 @@ fun SearchTutorialDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 180.dp, max = 320.dp)
+                        .heightIn(min = 200.dp, max = 340.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
                     when (selectedSection) {
@@ -2688,18 +3006,18 @@ fun SearchTutorialDialog(
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 TutorialStepItem(
                                     number = "1",
-                                    title = "Recherche par code d'UE",
-                                    description = "Tapez le code officiel du cours (ex: INF101, MAT202, BIO111) pour trouver directement l'épreuve ou le support associé."
+                                    title = "Recherche par code d'UE ou matière",
+                                    description = "Tapez le code officiel du cours (ex: INF101, MAT202, BIO111) ou le titre d'une matière pour trouver immédiatement les ressources."
                                 )
                                 TutorialStepItem(
                                     number = "2",
-                                    title = "Recherche par matière ou mot-clé",
-                                    description = "Saisissez un mot-clé comme « Algèbre », « Programmation C », « Droit commercial » ou le nom de votre enseignant."
+                                    title = "Validation et affichage instantané",
+                                    description = "La liste des cours, épreuves et corrigés correspondants s'affiche avec leurs métadonnées complètes."
                                 )
                                 TutorialStepItem(
                                     number = "3",
-                                    title = "Validation automatique",
-                                    description = "La recherche se lance dès que vous appuyez sur Entrée ou sur le bouton « Rechercher » du clavier."
+                                    title = "Partage direct",
+                                    description = "Partagez facilement un document ou corrigé avec vos camarades via le bouton de partage dédié."
                                 )
 
                                 Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -2742,7 +3060,7 @@ fun SearchTutorialDialog(
                                 TutorialStepItem(
                                     number = "1",
                                     title = "Afficher les filtres avancés",
-                                    description = "Touchez le bouton « Filtres avancés » sous la barre de recherche pour déplier tous les critères disponibles."
+                                    description = "Touchez le bouton « Filtres » sous la barre de recherche pour déplier tous les critères disponibles."
                                 )
                                 TutorialStepItem(
                                     number = "2",
@@ -2751,8 +3069,8 @@ fun SearchTutorialDialog(
                                 )
                                 TutorialStepItem(
                                     number = "3",
-                                    title = "Niveau d'étude & Type de ressource",
-                                    description = "Ciblez votre niveau (L1, L2, L3, M1, M2) et choisissez le format souhaité : Cours, Épreuve, TD ou TP."
+                                    title = "Niveaux d'étude ultra-rapides",
+                                    description = "Sélectionnez directement votre niveau (L1, L2, L3, M1, M2) et choisissez le format souhaité (Cours, Épreuves, Corrigés, TD, TP)."
                                 )
 
                                 Divider(modifier = Modifier.padding(vertical = 4.dp))
@@ -2794,18 +3112,37 @@ fun SearchTutorialDialog(
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 TutorialStepItem(
                                     number = "1",
-                                    title = "Téléchargement en un clic",
-                                    description = "Appuyez sur le bouton vert « Télécharger » à droite de n'importe quel document trouvé."
+                                    title = "Aperçu visuel des pages PDF",
+                                    description = "Cliquez sur « Aperçu » sur n'importe quel document ou effectuez un appui long dans vos téléchargements pour ouvrir le visualiseur."
                                 )
                                 TutorialStepItem(
                                     number = "2",
-                                    title = "Consultation sans connexion",
-                                    description = "Basculez sur l'onglet « Téléchargés » dans la barre en bas pour accéder à vos documents enregistrés hors-ligne."
+                                    title = "Feuilleter les pages du document",
+                                    description = "Parcourez directement les pages avec les boutons précédent/suivant sans avoir à quitter l'application."
                                 )
                                 TutorialStepItem(
                                     number = "3",
-                                    title = "Gestion du stockage",
-                                    description = "Vous pouvez ouvrir directement vos fichiers dans votre lecteur PDF favori ou supprimer les anciens documents pour libérer de l'espace."
+                                    title = "Partager depuis l'aperçu",
+                                    description = "Un bouton de partage rapide vous permet d'envoyer le document en cours de visualisation vers WhatsApp, Email ou Bluetooth."
+                                )
+                            }
+                        }
+                        3 -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                TutorialStepItem(
+                                    number = "1",
+                                    title = "Téléchargement en un clic",
+                                    description = "Appuyez sur le bouton vert « Télécharger » à droite de n'importe quel cours ou épreuve."
+                                )
+                                TutorialStepItem(
+                                    number = "2",
+                                    title = "Accès hors-ligne direct",
+                                    description = "Basculez sur l'onglet « Téléchargés » dans le menu du bas pour consulter tous vos fichiers enregistrés sans connexion."
+                                )
+                                TutorialStepItem(
+                                    number = "3",
+                                    title = "Ouvrir, partager et gérer le stockage",
+                                    description = "Ouvrez instantanément vos fichiers avec le bouton compact « Ouvrir », partagez-les en un clic ou supprimez les anciens pour libérer de la mémoire."
                                 )
                             }
                         }
@@ -2870,6 +3207,107 @@ fun TutorialStepItem(
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 16.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun DownloadProgressItem(
+    downloadStatus: DownloadStatus.Progress,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+    label: String = "Téléchargement en cours..."
+) {
+    val speedText = remember(downloadStatus.speedKBps) { formatSpeed(downloadStatus.speedKBps) }
+    val sizeText = remember(downloadStatus.downloadedBytes, downloadStatus.totalBytes) {
+        formatProgressDetail(downloadStatus.downloadedBytes, downloadStatus.totalBytes)
+    }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = if (downloadStatus.progress > 0) downloadStatus.progress / 100f else 0f,
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "download_progress"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .background(color = containerColor, shape = RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.5.dp,
+                    color = accentColor
+                )
+                Text(
+                    text = if (sizeText.isNotBlank()) "$label ($sizeText)" else label,
+                    fontSize = 11.sp,
+                    color = accentColor,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (downloadStatus.speedKBps > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = accentColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = speedText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = "${downloadStatus.progress}%",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accentColor
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (downloadStatus.progress > 0) {
+            LinearProgressIndicator(
+                progress = { animatedProgress },
+                color = accentColor,
+                trackColor = accentColor.copy(alpha = 0.2f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+            )
+        } else {
+            LinearProgressIndicator(
+                color = accentColor,
+                trackColor = accentColor.copy(alpha = 0.2f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
             )
         }
     }

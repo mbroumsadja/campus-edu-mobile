@@ -46,16 +46,28 @@ interface CampusEduService {
     ): Response<ResponseBody>
 
     @GET("api/filieres")
-    suspend fun getFilieres(): Response<FiliereResponse>
+    suspend fun getFilieres(
+        @Query("ecole_id") ecoleId: Int? = null,
+        @Query("ecole") ecole: String? = null
+    ): Response<FiliereResponse>
 
     @GET("api/filiere")
-    suspend fun getFiliereSingle(): Response<FiliereResponse>
+    suspend fun getFiliereSingle(
+        @Query("ecole_id") ecoleId: Int? = null,
+        @Query("ecole") ecole: String? = null
+    ): Response<FiliereResponse>
 
     @GET("filiere")
-    suspend fun getFiliereDirect(): Response<FiliereResponse>
+    suspend fun getFiliereDirect(
+        @Query("ecole_id") ecoleId: Int? = null,
+        @Query("ecole") ecole: String? = null
+    ): Response<FiliereResponse>
 
     @GET("filieres")
-    suspend fun getFilieresDirect(): Response<FiliereResponse>
+    suspend fun getFilieresDirect(
+        @Query("ecole_id") ecoleId: Int? = null,
+        @Query("ecole") ecole: String? = null
+    ): Response<FiliereResponse>
 
     @GET("api/cours/{id}/telecharger")
     @Streaming

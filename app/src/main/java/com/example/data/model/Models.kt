@@ -20,7 +20,10 @@ data class UeWithDocuments(
     val semestre: String? = null,
     val credits: Int? = null,
     val cours: List<Cours>?,
-    val sujets: List<Sujet>?
+    val sujets: List<Sujet>?,
+    val filiereCode: String? = null,
+    val filiereNom: String? = null,
+    val ecoleNom: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -40,7 +43,10 @@ data class Cours(
     val ue_id: Int?,
     val enseignant_id: Int?,
     val deja_telecharge: Boolean? = false,
-    val disponible: Boolean? = true
+    val disponible: Boolean? = true,
+    val filiereCode: String? = null,
+    val filiereNom: String? = null,
+    val ecoleNom: String? = null
 ) {
     val downloadUrl: String?
         get() = lienTelechargement ?: cheminFichier
@@ -63,7 +69,10 @@ data class Sujet(
     val ue_id: Int?,
     val enseignant_id: Int?,
     val deja_telecharge: Boolean? = false,
-    val disponible: Boolean? = true
+    val disponible: Boolean? = true,
+    val filiereCode: String? = null,
+    val filiereNom: String? = null,
+    val ecoleNom: String? = null
 ) {
     val downloadUrl: String?
         get() = lienTelechargement ?: cheminFichier
@@ -92,7 +101,10 @@ data class Filiere(
     val id: Int,
     val code: String,
     val nom: String,
-    val departement: String? = null
+    val departement: String? = null,
+    val ecole_id: Int? = null,
+    val ecole_nom: String? = null,
+    val ecole: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -118,15 +130,16 @@ data class SearchDocumentsData(
 @JsonClass(generateAdapter = true)
 data class ApiDocumentItem(
     val id: Int,
-    val cours_id: Int? = null,        // ← nouveau : regrouper les documents d'un même cours
+    val cours_id: Int? = null,
     val tag_ordre: String? = null, 
     val type_contenu: String? = null,
     val nom: String,
     val type: String? = null,
     val lien_telechargement: String? = null,
-    val taille_octets: Long? = null,
+    val taille_octets: String? = null,
     val taille_lisible: String? = null,
     val niveau: String? = null,
+    val semestre: String? = null,
     val filiere_id: Int? = null,
     val filiere_code: String? = null,
     val filiere_nom: String? = null,
@@ -135,13 +148,16 @@ data class ApiDocumentItem(
     val code_ue: String? = null,
     val intitule_ue: String? = null,
     val annee_academique: String? = null,
-    val annee: Any? = null,
+    val annee: String? = null,
     val telechargements: Int? = null,
     val disponible: Boolean? = true,
     val deja_telecharge: Boolean? = false
 ) {
     val lienTelechargement: String?
         get() = lien_telechargement
+
+    val tailleOctetsLong: Long?
+        get() = taille_octets?.toLongOrNull()
 }
 
 @JsonClass(generateAdapter = true)
