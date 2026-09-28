@@ -1,9 +1,15 @@
 package com.example.ui.search
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import com.example.ui.catalogue.CatalogueScreen
+import com.example.ui.blog.ScientificBlogScreen
+import com.example.ui.gemini.GeminiStudyChatScreen
+import com.example.data.repository.LocalDownloadedDocument
+import com.example.ui.components.SearchSkeleton
+import com.example.utils.GeminiShareHelper
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -79,13 +85,17 @@ fun SearchScreen(
 
     var filiereExpanded by remember { mutableStateOf(false) }
     var ecoleExpanded by remember { mutableStateOf(false) }
-    var showFilters by remember { mutableStateOf(false) }
+    var showFilters by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showTutorialDialog by remember { mutableStateOf(false) }
-    // When a document finishes downloading, automatically open with Android PDF Viewer
+    var selectedDocForAiOptions by remember { mutableStateOf<LocalDownloadedDocument?>(null) }
+    var missingAiApp by remember { mutableStateOf<com.example.utils.AiAppTarget?>(null) }
+    var newlyDownloadedNoticeDoc by remember { mutableStateOf<LocalDownloadedDocument?>(null) }
+
+    // When a document finishes downloading, notify user and provide immediate "Étudier avec IA"
     LaunchedEffect(Unit) {
         viewModel.newlyDownloadedDocFlow.collect { localDoc ->
-            viewModel.openLocalFile(context, localDoc)
+            newlyDownloadedNoticeDoc = localDoc
         }
     }
 
@@ -109,13 +119,13 @@ fun SearchScreen(
                         when (selectedTab) {
                             0 -> {
                                 Text(
-                                    text = "Catalogue des Cours",
+                                    text = "Campus Educatif",
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontSize = 17.sp
                                 )
                                 Text(
-                                    text = "campus educatif-univ-Garoua",
+                                    text = "Cours disponible",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.SemiBold,
@@ -137,7 +147,7 @@ fun SearchScreen(
                                     fontSize = 12.sp
                                 )
                             }
-                            else -> {
+                            2 -> {
                                 Text(
                                     text = "Documents Téléchargés",
                                     fontWeight = FontWeight.Bold,
@@ -152,10 +162,42 @@ fun SearchScreen(
                                     fontSize = 12.sp
                                 )
                             }
+                            else -> {
+                                Text(
+                                    text = "Notification",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 17.sp
+                                )
+                                Text(
+                                    text = "Université de Garoua",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 },
-                actions = {},
+                actions = {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .size(38.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.logo_univ_garoua),
+                            contentDescription = "Logo Université de Garoua",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -163,139 +205,139 @@ fun SearchScreen(
         },
         bottomBar = {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
+                tonalElevation = 4.dp,
+                shadowElevation = 6.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             ) {
-                Column(
+                NavigationBar(
+                    containerColor = Color.Transparent,
+                    tonalElevation = 0.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
+                        .height(64.dp)
                 ) {
-                    Divider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                        thickness = 0.5.dp
+                    // Tab 0 : Catalogue
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = {
+                            Icon(
+                                imageVector = if (selectedTab == 0) Icons.Default.AutoStories else Icons.Default.MenuBook,
+                                contentDescription = "Catalogue"
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = "Catalogue",
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .padding(horizontal = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Tab 0: Première page: Catalogue de disponibilité
-                        val tab0Selected = selectedTab == 0
-                        Surface(
-                            onClick = { selectedTab = 0 },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (tab0Selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoStories,
-                                    contentDescription = "Catalogue",
-                                    tint = if (tab0Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Catalogue",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (tab0Selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (tab0Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.width(4.dp))
+                    // Tab 1 : Recherche
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Recherche"
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = "Recherche",
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
 
-                        // Tab 1: Recherche textuelle & filtres
-                        val tab1Selected = selectedTab == 1
-                        Surface(
-                            onClick = { selectedTab = 1 },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (tab1Selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Recherche",
-                                    tint = if (tab1Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Recherche",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (tab1Selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (tab1Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        // Tab 2: Téléchargés
-                        val tab2Selected = selectedTab == 2
-                        Surface(
-                            onClick = { selectedTab = 2 },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(46.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (tab2Selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                BadgedBox(
-                                    badge = {
-                                        if (allLocalFiles.isNotEmpty()) {
-                                            Badge(
-                                                containerColor = MaterialTheme.colorScheme.primary,
-                                                contentColor = MaterialTheme.colorScheme.onPrimary
-                                            ) {
-                                                Text(
-                                                    text = "${allLocalFiles.size}",
-                                                    fontSize = 10.sp
-                                                )
-                                            }
+                    // Tab 2 : Fichiers Téléchargés
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = {
+                            BadgedBox(
+                                badge = {
+                                    if (allLocalFiles.isNotEmpty()) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        ) {
+                                            Text("${allLocalFiles.size}")
                                         }
                                     }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Folder,
-                                        contentDescription = "Téléchargés",
-                                        tint = if (tab2Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
                                 }
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Téléchargés",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (tab2Selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (tab2Selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ) {
+                                Icon(
+                                    imageVector = if (selectedTab == 2) Icons.Default.Folder else Icons.Default.FolderOpen,
+                                    contentDescription = "Fichiers"
                                 )
                             }
-                        }
-                    }
+                        },
+                        label = {
+                            Text(
+                                text = "Fichiers",
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    // Tab 3 : Notification
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notification"
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = "Notification",
+                                fontSize = 11.sp,
+                                fontWeight = if (selectedTab == 3) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 }
             }
         },
@@ -315,15 +357,22 @@ fun SearchScreen(
                     )
                 }
                 2 -> {
-                    // Tab 2: Fichiers téléchargés en local
+                    // Tab 2: Fichiers téléchargés en local avec classement par type
                     DownloadedFilesSection(
                         localFiles = allLocalFiles,
                         onOpenFile = { fileDoc ->
                             viewModel.openLocalFile(context, fileDoc)
                         },
                         onShareFile = { viewModel.shareLocalFile(context, it) },
-                        onDeleteFile = { viewModel.deleteLocalFile(context, it) }
+                        onDeleteFile = { viewModel.deleteLocalFile(context, it) },
+                        onStudyWithAi = { doc ->
+                            selectedDocForAiOptions = doc
+                        }
                     )
+                }
+                3 -> {
+                    // Tab 3: Notifications et mises à jour de l'application
+                    ScientificBlogScreen()
                 }
                 else -> {
                     // Tab 1: Recherche textuelle & filtres
@@ -532,8 +581,23 @@ fun SearchScreen(
                                                         val isFs = ecole.nom.equals("FS", ignoreCase = true) ||
                                                                 ecole.sigle?.equals("FS", ignoreCase = true) == true ||
                                                                 ecole.nom.contains("Sciences", ignoreCase = true)
+                                                        val isFmsb = ecole.nom.contains("FMSB", ignoreCase = true) ||
+                                                                ecole.sigle?.equals("FMSB", ignoreCase = true) == true ||
+                                                                ecole.nom.contains("Médecine", ignoreCase = true) ||
+                                                                ecole.nom.contains("Biomédicales", ignoreCase = true)
                                                         DropdownMenuItem(
-                                                            leadingIcon = if (isFs) {
+                                                            leadingIcon = if (isFmsb) {
+                                                                {
+                                                                    Image(
+                                                                        painter = painterResource(id = R.drawable.logo_fmsb),
+                                                                        contentDescription = "Logo FMSB",
+                                                                        modifier = Modifier
+                                                                            .size(24.dp)
+                                                                            .clip(CircleShape),
+                                                                        contentScale = ContentScale.Fit
+                                                                    )
+                                                                }
+                                                            } else if (isFs) {
                                                                 {
                                                                     Image(
                                                                         painter = painterResource(id = R.drawable.logo_fs),
@@ -549,6 +613,7 @@ fun SearchScreen(
                                                                 Column {
                                                                     Text(
                                                                         text = if (ecole.nom.equals("FS", ignoreCase = true)) "FS - Faculté des Sciences"
+                                                                        else if (ecole.nom.equals("FMSB", ignoreCase = true)) "FMSB - Faculté de Médecine et des Sciences Biomédicales"
                                                                         else if (!ecole.sigle.isNullOrBlank()) "${ecole.sigle} - ${ecole.nom}" else ecole.nom,
                                                                         fontWeight = FontWeight.SemiBold,
                                                                         fontSize = 13.sp
@@ -794,6 +859,22 @@ fun SearchScreen(
                             onOpenSujet = { sujet, corrige ->
                                 viewModel.openDownloadedSujet(context, sujet, corrige)
                             },
+                            onStudyCoursWithAi = { cours ->
+                                val doc = viewModel.getLocalDocumentForCours(context, cours)
+                                if (doc != null) {
+                                    selectedDocForAiOptions = doc
+                                } else {
+                                    Toast.makeText(context, "Veuillez d'abord télécharger ce cours pour l'étudier avec l'IA.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onStudySujetWithAi = { sujet, isCorrige ->
+                                val doc = viewModel.getLocalDocumentForSujet(context, sujet, isCorrige)
+                                if (doc != null) {
+                                    selectedDocForAiOptions = doc
+                                } else {
+                                    Toast.makeText(context, "Veuillez d'abord télécharger ce document pour l'étudier avec l'IA.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             onShareCours = { viewModel.shareDownloadedCours(context, it) },
                             onShareSujet = { sujet, corrige -> viewModel.shareDownloadedSujet(context, sujet, corrige) },
                             onDeleteCours = { viewModel.deleteDownloadedCours(context, it) },
@@ -816,35 +897,7 @@ fun SearchScreen(
                                         // Clean empty view before search is performed
                                     }
                                     is SearchUiState.Loading -> {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center,
-                                                modifier = Modifier.padding(24.dp)
-                                            ) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(48.dp),
-                                                    strokeWidth = 4.dp,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                                Spacer(modifier = Modifier.height(20.dp))
-                                                Text(
-                                                    text = "Recherche de documents en cours...",
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Spacer(modifier = Modifier.height(6.dp))
-                                                Text(
-                                                    text = "Interrogation de l'API Campus Edu...",
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
+                                        SearchSkeleton()
                                     }
                                     is SearchUiState.Empty -> {
                                         StateDisplayCard(
@@ -888,7 +941,10 @@ fun SearchScreen(
                                                 onShareFile = { fileDoc ->
                                                     viewModel.shareLocalFile(context, fileDoc)
                                                 },
-                                                onDeleteFile = { viewModel.deleteLocalFile(context, it) }
+                                                onDeleteFile = { viewModel.deleteLocalFile(context, it) },
+                                                onStudyWithAi = { doc ->
+                                                    selectedDocForAiOptions = doc
+                                                }
                                             )
                                         }
                                     }
@@ -937,6 +993,259 @@ fun SearchScreen(
                 if (type != null) viewModel.selectType(type)
                 if (niveau != null) viewModel.selectNiveau(niveau)
                 viewModel.updateSearchQuery(query)
+            }
+        )
+    }
+
+    // Dialogue d'alerte dès la fin d'un téléchargement pour proposer d'étudier immédiatement avec l'IA
+    if (newlyDownloadedNoticeDoc != null) {
+        val doc = newlyDownloadedNoticeDoc!!
+        AlertDialog(
+            onDismissRequest = { newlyDownloadedNoticeDoc = null },
+            icon = {
+                Surface(
+                    color = Color(0xFFE8F5E9),
+                    shape = CircleShape,
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = "Téléchargement terminé !",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = doc.formattedTitle,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Le document est enregistré hors-ligne et prêt pour vos révisions.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val target = doc
+                        newlyDownloadedNoticeDoc = null
+                        selectedDocForAiOptions = target
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Étudier avec IA")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TextButton(
+                        onClick = {
+                            val target = doc
+                            newlyDownloadedNoticeDoc = null
+                            viewModel.openLocalFile(context, target)
+                        }
+                    ) {
+                        Text("Lire")
+                    }
+                    TextButton(
+                        onClick = { newlyDownloadedNoticeDoc = null }
+                    ) {
+                        Text("Fermer")
+                    }
+                }
+            }
+        )
+    }
+
+    // Composant de sélection d'IA pour étudier avec l'IA
+    // Listing : Gemini, Claude AI, ChatGPT, DeepSeek
+    // Sur chaque composant d'application : le nom de l'application uniquement
+    if (selectedDocForAiOptions != null) {
+        val doc = selectedDocForAiOptions!!
+        AlertDialog(
+            onDismissRequest = { selectedDocForAiOptions = null },
+            icon = {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = CircleShape,
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = "Étudier avec l'IA",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = doc.formattedTitle,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${doc.typeLabel} • ${doc.sizeFormatted}",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Applications d'IA : Claude AI, ChatGPT, DeepSeek, Gemini
+                    // Ecrire sur chaque composant d'application le nom de l'application uniquement
+                    val aiApps = com.example.utils.GeminiShareHelper.AI_APPS
+
+                    aiApps.forEach { aiApp ->
+                        Surface(
+                            onClick = {
+                                val target = doc
+                                val targetApp = aiApp
+                                selectedDocForAiOptions = null
+                                com.example.utils.GeminiShareHelper.shareDocumentToAiApp(
+                                    context = context,
+                                    file = target.file,
+                                    app = targetApp,
+                                    onNotInstalled = {
+                                        missingAiApp = targetApp
+                                    }
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 14.dp, horizontal = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = aiApp.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { selectedDocForAiOptions = null }) {
+                    Text("Fermer")
+                }
+            }
+        )
+    }
+
+    if (missingAiApp != null) {
+        val targetApp = missingAiApp!!
+        AlertDialog(
+            onDismissRequest = { missingAiApp = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Download,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "${targetApp.name} non installée",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Text(
+                    text = "L'application ${targetApp.name} n'a pas été détectée sur votre appareil.\n\nVous pouvez l'installer depuis le Google Play Store ou partager votre document vers une autre application disponible.",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val app = targetApp
+                        missingAiApp = null
+                        com.example.utils.GeminiShareHelper.promptInstallApp(context, app)
+                    }
+                ) {
+                    Text("Installer ${targetApp.name}")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { missingAiApp = null }) {
+                    Text("Fermer")
+                }
             }
         )
     }
@@ -1409,6 +1718,8 @@ fun DocumentList(
     onDownloadSujet: (Sujet, Boolean) -> Unit,
     onOpenCours: (Cours) -> Unit,
     onOpenSujet: (Sujet, Boolean) -> Unit,
+    onStudyCoursWithAi: (Cours) -> Unit = {},
+    onStudySujetWithAi: (Sujet, Boolean) -> Unit = { _, _ -> },
     onShareCours: (Cours) -> Unit = {},
     onShareSujet: (Sujet, Boolean) -> Unit = { _, _ -> },
     onDeleteCours: (Cours) -> Unit,
@@ -1436,6 +1747,8 @@ fun DocumentList(
                     onDownloadSujet = onDownloadSujet,
                     onOpenCours = onOpenCours,
                     onOpenSujet = onOpenSujet,
+                    onStudyCoursWithAi = onStudyCoursWithAi,
+                    onStudySujetWithAi = onStudySujetWithAi,
                     onShareCours = onShareCours,
                     onShareSujet = onShareSujet,
                     onDeleteCours = onDeleteCours,
@@ -1476,6 +1789,8 @@ fun UeUnifiedDocumentCard(
     onDownloadSujet: (Sujet, Boolean) -> Unit,
     onOpenCours: (Cours) -> Unit,
     onOpenSujet: (Sujet, Boolean) -> Unit,
+    onStudyCoursWithAi: (Cours) -> Unit = {},
+    onStudySujetWithAi: (Sujet, Boolean) -> Unit = { _, _ -> },
     onShareCours: (Cours) -> Unit = {},
     onShareSujet: (Sujet, Boolean) -> Unit = { _, _ -> },
     onDeleteCours: (Cours) -> Unit,
@@ -1497,6 +1812,7 @@ fun UeUnifiedDocumentCard(
                 downloadStatus = downloadStatus,
                 onDownload = { onDownloadCours(cours) },
                 onOpen = { onOpenCours(cours) },
+                onStudyWithAi = { onStudyCoursWithAi(cours) },
                 onShare = { onShareCours(cours) },
                 onDelete = { onDeleteCours(cours) }
             )
@@ -1520,6 +1836,8 @@ fun UeUnifiedDocumentCard(
                 onDownloadCorrige = { onDownloadSujet(sujet, true) },
                 onOpenSujet = { onOpenSujet(sujet, false) },
                 onOpenCorrige = { onOpenSujet(sujet, true) },
+                onStudySujetWithAi = { onStudySujetWithAi(sujet, false) },
+                onStudyCorrigeWithAi = { onStudySujetWithAi(sujet, true) },
                 onShareSujet = { onShareSujet(sujet, false) },
                 onShareCorrige = { onShareSujet(sujet, true) },
                 onDeleteSujet = { onDeleteSujet(sujet, false) },
@@ -1631,6 +1949,7 @@ fun CoursItemCard(
     downloadStatus: DownloadStatus,
     onDownload: () -> Unit,
     onOpen: () -> Unit,
+    onStudyWithAi: () -> Unit = {},
     onShare: () -> Unit = {},
     onDelete: () -> Unit
 ) {
@@ -1920,27 +2239,56 @@ fun CoursItemCard(
                             Text("Téléchargement...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     } else if (isDownloaded) {
-                        Button(
-                            onClick = onOpen,
-                            modifier = Modifier.height(36.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PictureAsPdf,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Lire le cours",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Button(
+                                onClick = onOpen,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Lire",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            FilledTonalButton(
+                                onClick = onStudyWithAi,
+                                modifier = Modifier.height(36.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Étudier avec IA",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Row(
@@ -2013,6 +2361,8 @@ fun SujetItemCard(
     onDownloadCorrige: () -> Unit,
     onOpenSujet: () -> Unit,
     onOpenCorrige: () -> Unit,
+    onStudySujetWithAi: () -> Unit = {},
+    onStudyCorrigeWithAi: () -> Unit = {},
     onShareSujet: () -> Unit = {},
     onShareCorrige: () -> Unit = {},
     onDeleteSujet: () -> Unit,
@@ -2283,27 +2633,56 @@ fun SujetItemCard(
                         Text("Téléchargement...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 } else if (isSujetDownloaded) {
-                    Button(
-                        onClick = onOpenSujet,
-                        modifier = Modifier.height(36.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PictureAsPdf,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Lire l'épreuve",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Button(
+                            onClick = onOpenSujet,
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Lire",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        FilledTonalButton(
+                            onClick = onStudySujetWithAi,
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            ),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Étudier avec IA",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     Row(
@@ -2453,23 +2832,48 @@ fun SujetItemCard(
                             Text("Téléchargement...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     } else if (isCorrigeDownloaded) {
-                        Button(
-                            onClick = onOpenCorrige,
-                            modifier = Modifier.height(34.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFD84315),
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PictureAsPdf,
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Lire le corrigé", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Button(
+                                onClick = onOpenCorrige,
+                                modifier = Modifier.height(34.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFD84315),
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Lire", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            FilledTonalButton(
+                                onClick = onStudyCorrigeWithAi,
+                                modifier = Modifier.height(34.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                ),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Étudier avec IA", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
 
                         Row(
@@ -2678,62 +3082,69 @@ fun DownloadedFilesSection(
     onOpenFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit,
     onShareFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
     onDeleteFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit,
+    onOpenGeminiChat: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
+    onShareToGeminiApp: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
-    val filteredFiles = remember(localFiles, searchQuery) {
-        if (searchQuery.isBlank()) localFiles
-        else localFiles.filter { it.formattedTitle.contains(searchQuery, ignoreCase = true) || it.name.contains(searchQuery, ignoreCase = true) }
+    var selectedNiveau by remember { mutableStateOf("Tous") }
+    var selectedType by remember { mutableStateOf("Tous") }
+    var isFilterExpanded by remember { mutableStateOf(false) }
+    var selectedDocForAiOptions by remember { mutableStateOf<com.example.data.repository.LocalDownloadedDocument?>(null) }
+    var docMissingGemini by remember { mutableStateOf<com.example.data.repository.LocalDownloadedDocument?>(null) }
+
+    val niveaux = listOf("Tous", "L1", "L2", "L3", "M1", "M2")
+    val types = listOf("Tous", "Cours", "Sujets", "Corrigés")
+
+    val filteredFiles = remember(localFiles, searchQuery, selectedNiveau, selectedType) {
+        localFiles.filter { doc ->
+            val matchesSearch = if (searchQuery.isBlank()) true else {
+                doc.formattedTitle.contains(searchQuery, ignoreCase = true) ||
+                doc.name.contains(searchQuery, ignoreCase = true) ||
+                doc.typeLabel.contains(searchQuery, ignoreCase = true) ||
+                doc.niveau.contains(searchQuery, ignoreCase = true)
+            }
+            val matchesNiveau = if (selectedNiveau == "Tous") true else {
+                doc.niveau.equals(selectedNiveau, ignoreCase = true)
+            }
+            val matchesType = if (selectedType == "Tous") true else {
+                when (selectedType) {
+                    "Cours" -> doc.typeCategory == "Cours" || doc.typeLabel.contains("Cours", ignoreCase = true)
+                    "Sujets" -> doc.typeCategory == "Sujets" || doc.typeLabel.contains("Sujet", ignoreCase = true) || doc.typeLabel.contains("Épreuve", ignoreCase = true)
+                    "Corrigés" -> doc.typeCategory == "Corrigés" || doc.typeLabel.contains("Corrigé", ignoreCase = true)
+                    else -> true
+                }
+            }
+            matchesSearch && matchesNiveau && matchesType
+        }
     }
 
-    Column(modifier = modifier.fillMaxWidth().padding(12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Documents Téléchargés (${localFiles.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
+    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         if (localFiles.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
                         imageVector = Icons.Default.DownloadDone,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(36.dp)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(44.dp)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "Aucun document téléchargé",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Téléchargez des cours ou épreuves en ligne pour pouvoir les consulter ici à tout moment, même sans connexion internet.",
+                        text = "Téléchargez des cours magistraux, TD ou épreuves depuis le Catalogue ou la Recherche pour pouvoir les consulter ici et les étudier avec l'Assistant Gemini IA.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -2741,131 +3152,167 @@ fun DownloadedFilesSection(
                 }
             }
         } else {
+            // Barre de recherche textuelle avec bouton de paramètres déroulables
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Filtrer vos fichiers hors ligne...", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                shape = RoundedCornerShape(8.dp),
+                placeholder = { Text("Rechercher dans les téléchargements...", fontSize = 12.sp) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable { isFilterExpanded = !isFilterExpanded },
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                trailingIcon = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Effacer", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                        IconButton(
+                            onClick = { isFilterExpanded = !isFilterExpanded },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            val hasActiveFilter = selectedNiveau != "Tous" || selectedType != "Tous"
+                            BadgedBox(
+                                badge = {
+                                    if (hasActiveFilter) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(6.dp)
+                                        )
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (isFilterExpanded) Icons.Default.Tune else Icons.Default.FilterList,
+                                    contentDescription = "Paramètres de filtrage",
+                                    tint = if (isFilterExpanded || hasActiveFilter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
                 singleLine = true
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize()
+            // Paramètres déroulables (Niveau & Type)
+            AnimatedVisibility(
+                visible = isFilterExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                itemsIndexed(filteredFiles, key = { index, doc -> "${doc.name}_$index" }) { _, doc ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onOpenFile(doc) }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                        // Classement par Niveau (L1, L2, L3, M1, M2)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Classement par Niveau :",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 3.dp)
+                            )
                             Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.PictureAsPdf,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(22.dp)
+                                niveaux.forEach { niv ->
+                                    val isSelected = selectedNiveau == niv
+                                    val count = if (niv == "Tous") localFiles.size else localFiles.count { it.niveau.equals(niv, ignoreCase = true) }
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedNiveau = niv },
+                                        label = {
+                                            Text(
+                                                text = if (niv == "Tous") "Tous ($count)" else "$niv ($count)",
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        leadingIcon = if (isSelected) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                                        } else null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                Column {
-                                    Text(
-                                        text = doc.formattedTitle,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            text = doc.typeLabel,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text("•", fontSize = 11.sp, color = Color.Gray)
-                                        Text(
-                                            text = doc.sizeFormatted,
-                                            fontSize = 11.sp,
-                                            color = Color.Gray
-                                        )
-                                    }
                                 }
                             }
+                        }
 
+                        // Classement par Type de document (Cours, Sujets, Corrigés)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Type de document :",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(bottom = 3.dp)
+                            )
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Button(
-                                    onClick = { onOpenFile(doc) },
-                                    modifier = Modifier.height(32.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.MenuBook,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Lire", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-
-                                IconButton(
-                                    onClick = { onShareFile(doc) },
-                                    modifier = Modifier
-                                        .size(30.dp)
-                                        .testTag("share_local_file_${doc.name}")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Share,
-                                        contentDescription = "Partager",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(17.dp)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { onDeleteFile(doc) },
-                                    modifier = Modifier.size(30.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.DeleteOutline,
-                                        contentDescription = "Supprimer",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(17.dp)
+                                types.forEach { type ->
+                                    val isSelected = selectedType == type
+                                    val count = if (type == "Tous") localFiles.size else localFiles.count {
+                                        when (type) {
+                                            "Cours" -> it.typeCategory == "Cours" || it.typeLabel.contains("Cours", ignoreCase = true)
+                                            "Sujets" -> it.typeCategory == "Sujets" || it.typeLabel.contains("Sujet", ignoreCase = true) || it.typeLabel.contains("Épreuve", ignoreCase = true)
+                                            "Corrigés" -> it.typeCategory == "Corrigés" || it.typeLabel.contains("Corrigé", ignoreCase = true)
+                                            else -> true
+                                        }
+                                    }
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedType = type },
+                                        label = {
+                                            Text(
+                                                text = if (type == "Tous") "Tous les types ($count)" else "$type ($count)",
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            val icon = when (type) {
+                                                "Cours" -> Icons.Default.MenuBook
+                                                "Sujets" -> Icons.Default.Assignment
+                                                "Corrigés" -> Icons.Default.TaskAlt
+                                                else -> Icons.Default.Layers
+                                            }
+                                            Icon(icon, contentDescription = null, modifier = Modifier.size(13.dp))
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
                                     )
                                 }
                             }
@@ -2873,6 +3320,514 @@ fun DownloadedFilesSection(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (filteredFiles.isEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Aucun document ne correspond aux filtres",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Niveau : $selectedNiveau • Type : $selectedType",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            onClick = {
+                                selectedNiveau = "Tous"
+                                selectedType = "Tous"
+                                searchQuery = ""
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Réinitialiser les filtres", fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    itemsIndexed(filteredFiles, key = { index, doc -> "${doc.name}_$index" }) { _, doc ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp).fillMaxWidth()
+                            ) {
+                                // En-tête : Icône, Titre, Badges Niveau et Type
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Surface(
+                                        color = when {
+                                            doc.typeLabel.contains("Sujet", ignoreCase = true) -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+                                            doc.typeLabel.contains("Corrigé", ignoreCase = true) -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                            else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.size(42.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.PictureAsPdf,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = doc.formattedTitle,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        // Badges de Niveau et de Type
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            // Badge Niveau
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Niveau ${doc.niveau}",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+
+                                            // Badge Type
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = doc.typeLabel,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+
+                                            Text(
+                                                text = doc.sizeFormatted,
+                                                fontSize = 10.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Divider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                    thickness = 0.5.dp
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Boutons d'actions : IA Gemini, Lire, Partager, Supprimer
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    // Bouton IA Gemini avec document importé
+                                    Button(
+                                        onClick = { selectedDocForAiOptions = doc },
+                                        modifier = Modifier.height(34.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = "Étudier avec IA",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        // Bouton Lire
+                                        Button(
+                                            onClick = { onOpenFile(doc) },
+                                            modifier = Modifier.height(34.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.primary,
+                                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MenuBook,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Lire", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        // Partager
+                                        IconButton(
+                                            onClick = { onShareFile(doc) },
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .testTag("share_local_file_${doc.name}")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Share,
+                                                contentDescription = "Partager",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(17.dp)
+                                            )
+                                        }
+
+                                        // Supprimer
+                                        IconButton(
+                                            onClick = { onDeleteFile(doc) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteOutline,
+                                                contentDescription = "Supprimer",
+                                                tint = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(17.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (selectedDocForAiOptions != null) {
+            val doc = selectedDocForAiOptions!!
+            AlertDialog(
+                onDismissRequest = { selectedDocForAiOptions = null },
+                icon = {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = CircleShape,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                },
+                title = {
+                    Text(
+                        text = "Étudier avec l'IA Gemini",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureAsPdf,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = doc.formattedTitle,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${doc.typeLabel} • ${doc.sizeFormatted}",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Choisissez comment explorer ce document avec l'IA :",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Option 1 : Ouvrir dans l'application Google Gemini
+                        Surface(
+                            onClick = {
+                                val target = doc
+                                selectedDocForAiOptions = null
+                                if (GeminiShareHelper.isGeminiInstalled(context)) {
+                                    onShareToGeminiApp(target)
+                                } else {
+                                    docMissingGemini = target
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "App Google Gemini",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Officielle",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Ouvre une nouvelle discussion avec ce fichier déjà attaché (ACTION_SEND)",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        // Option 2 : Assistant Gemini IA Intégré
+                        Surface(
+                            onClick = {
+                                val target = doc
+                                selectedDocForAiOptions = null
+                                onOpenGeminiChat(target)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.School,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onTertiary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Assistant IA Intégré",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Dans l'App",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.tertiary,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Chat académique interactif directement au sein de l'application",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { selectedDocForAiOptions = null }) {
+                        Text("Fermer")
+                    }
+                }
+            )
+        }
+
+        if (docMissingGemini != null) {
+            val target = docMissingGemini!!
+            AlertDialog(
+                onDismissRequest = { docMissingGemini = null },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        text = "Application Gemini non installée",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                },
+                text = {
+                    Text(
+                        text = "L'application officielle Google Gemini n'a pas été détectée sur votre appareil.\n\nVous pouvez l'installer depuis le Google Play Store pour créer automatiquement une discussion avec ce document attaché, ou partager le fichier avec une autre application.",
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            docMissingGemini = null
+                            GeminiShareHelper.promptInstallGemini(context)
+                        }
+                    ) {
+                        Text("Installer Gemini")
+                    }
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                docMissingGemini = null
+                                onShareFile(target)
+                            }
+                        ) {
+                            Text("Partager ailleurs")
+                        }
+                        TextButton(onClick = { docMissingGemini = null }) {
+                            Text("Annuler")
+                        }
+                    }
+                }
+            )
         }
     }
 }

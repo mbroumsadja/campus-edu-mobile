@@ -34,7 +34,9 @@ data class LocalDownloadedDocument(
     val formattedTitle: String,
     val typeLabel: String,
     val sizeFormatted: String,
-    val lastModifiedMillis: Long
+    val lastModifiedMillis: Long,
+    val niveau: String = "L1",
+    val typeCategory: String = "Cours"
 )
 
 class DownloadRepository(private val service: CampusEduService) {
@@ -52,11 +54,25 @@ class DownloadRepository(private val service: CampusEduService) {
                     rawName.startsWith("sujet_") -> "Sujet d'Épreuve"
                     else -> "Document PDF"
                 }
+                val typeCategory = when {
+                    rawName.startsWith("cours_") -> "Cours"
+                    rawName.startsWith("corrige_") -> "Corrigés"
+                    rawName.startsWith("sujet_") -> "Sujets"
+                    else -> "Cours"
+                }
                 val titleClean = rawName.substringAfter("_")
                     .substringAfter("_")
                     .removeSuffix(".pdf")
                     .replace("_", " ")
                     .ifBlank { rawName }
+
+                val niveau = when {
+                    rawName.contains("_M2", ignoreCase = true) || rawName.contains("Master 2", ignoreCase = true) || titleClean.contains("M2", ignoreCase = true) -> "M2"
+                    rawName.contains("_M1", ignoreCase = true) || rawName.contains("Master 1", ignoreCase = true) || titleClean.contains("M1", ignoreCase = true) -> "M1"
+                    rawName.contains("_L3", ignoreCase = true) || rawName.contains("Licence 3", ignoreCase = true) || titleClean.contains("L3", ignoreCase = true) -> "L3"
+                    rawName.contains("_L2", ignoreCase = true) || rawName.contains("Licence 2", ignoreCase = true) || titleClean.contains("L2", ignoreCase = true) -> "L2"
+                    else -> "L1"
+                }
 
                 val bytes = file.length()
                 val sizeFormatted = when {
@@ -71,7 +87,9 @@ class DownloadRepository(private val service: CampusEduService) {
                     formattedTitle = titleClean,
                     typeLabel = typeLabel,
                     sizeFormatted = sizeFormatted,
-                    lastModifiedMillis = file.lastModified()
+                    lastModifiedMillis = file.lastModified(),
+                    niveau = niveau,
+                    typeCategory = typeCategory
                 )
             }
     }
@@ -308,5 +326,19 @@ class DownloadRepository(private val service: CampusEduService) {
         } catch (e: Exception) {
             Toast.makeText(context, "Impossible de partager le document : ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    fun shareToGemini(
+        context: Context,
+        file: File,
+        preferGeminiDirect: Boolean = true,
+        onNotInstalled: (() -> Unit)? = null
+    ) {
+        com.example.utils.GeminiShareHelper.shareDocumentToGemini(
+            context = context,
+            file = file,
+            preferGeminiDirect = preferGeminiDirect,
+            onGeminiNotInstalled = onNotInstalled
+        )
     }
 }

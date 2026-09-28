@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Share files in context.getExternalFilesDir("documents") -->
     <external-files-path name="documents" path="documents" />
+    <external-files-path name="all_external_files" path="." />
     <!-- Share files in context.filesDir -->
     <files-path name="internal_documents" path="." />
+    <!-- Share files in context.cacheDir -->
+    <cache-path name="internal_cache" path="." />
 </paths>

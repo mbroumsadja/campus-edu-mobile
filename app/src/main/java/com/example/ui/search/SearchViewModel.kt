@@ -1132,9 +1132,36 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         return if (file != null && file.exists()) file else null
     }
 
+    fun getLocalDocumentForCours(context: Context, cours: Cours): com.example.data.repository.LocalDownloadedDocument? {
+        val file = getLocalFileForCours(context, cours) ?: return null
+        return com.example.data.repository.LocalDownloadedDocument(
+            file = file,
+            name = file.name,
+            formattedTitle = cours.titre ?: file.name,
+            typeLabel = "Cours PDF",
+            sizeFormatted = "${(file.length() / 1024).coerceAtLeast(1)} Ko",
+            lastModifiedMillis = file.lastModified(),
+            typeCategory = "Cours"
+        )
+    }
+
     fun getLocalFileForSujet(context: Context, sujet: Sujet, isCorrige: Boolean): File? {
         val file = downloadRepository.getLocalFileForSujet(context, sujet.id, isCorrige)
         return if (file != null && file.exists()) file else null
+    }
+
+    fun getLocalDocumentForSujet(context: Context, sujet: Sujet, isCorrige: Boolean): com.example.data.repository.LocalDownloadedDocument? {
+        val file = getLocalFileForSujet(context, sujet, isCorrige) ?: return null
+        val docTitle = "${sujet.titre ?: "Épreuve"}${if (isCorrige) " (Corrigé)" else ""}"
+        return com.example.data.repository.LocalDownloadedDocument(
+            file = file,
+            name = file.name,
+            formattedTitle = docTitle,
+            typeLabel = if (isCorrige) "Corrigé PDF" else "Épreuve PDF",
+            sizeFormatted = "${(file.length() / 1024).coerceAtLeast(1)} Ko",
+            lastModifiedMillis = file.lastModified(),
+            typeCategory = if (isCorrige) "Corrigés" else "Sujets"
+        )
     }
 
     fun shareDownloadedCours(context: Context, cours: Cours) {
@@ -1172,6 +1199,31 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             Toast.makeText(context, "Le fichier local n'a pas été trouvé.", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun shareLocalFileToGeminiApp(
+        context: Context,
+        localDoc: com.example.data.repository.LocalDownloadedDocument,
+        onNotInstalled: (() -> Unit)? = null
+    ) {
+        if (localDoc.file.exists()) {
+            downloadRepository.shareToGemini(
+                context = context,
+                file = localDoc.file,
+                preferGeminiDirect = true,
+                onNotInstalled = onNotInstalled
+            )
+        } else {
+            Toast.makeText(context, "Le fichier local n'a pas été trouvé.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun isGeminiAppInstalled(context: Context): Boolean {
+        return com.example.utils.GeminiShareHelper.isGeminiInstalled(context)
+    }
+
+    fun promptInstallGeminiApp(context: Context) {
+        com.example.utils.GeminiShareHelper.promptInstallGemini(context)
     }
 
     fun deleteDownloadedCours(context: Context, cours: Cours) {
