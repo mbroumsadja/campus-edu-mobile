@@ -33,10 +33,10 @@ object GeminiShareHelper {
 
     val AI_APPS = listOf(
         AiAppTarget(
-            id = "gemini",
-            name = "Gemini",
-            packageName = GEMINI_PACKAGE_NAME,
-            playStoreUrl = "https://play.google.com/store/apps/details?id=$GEMINI_PACKAGE_NAME"
+            id = "claude",
+            name = "Claude AI",
+            packageName = CLAUDE_PACKAGE_NAME,
+            playStoreUrl = "https://play.google.com/store/apps/details?id=$CLAUDE_PACKAGE_NAME"
         ),
         AiAppTarget(
             id = "chatgpt",
@@ -45,16 +45,16 @@ object GeminiShareHelper {
             playStoreUrl = "https://play.google.com/store/apps/details?id=$CHATGPT_PACKAGE_NAME"
         ),
         AiAppTarget(
-            id = "claude",
-            name = "Claude AI",
-            packageName = CLAUDE_PACKAGE_NAME,
-            playStoreUrl = "https://play.google.com/store/apps/details?id=$CLAUDE_PACKAGE_NAME"
-        ),
-        AiAppTarget(
             id = "deepseek",
             name = "DeepSeek",
             packageName = DEEPSEEK_PACKAGE_NAME,
             playStoreUrl = "https://play.google.com/store/apps/details?id=$DEEPSEEK_PACKAGE_NAME"
+        ),
+        AiAppTarget(
+            id = "gemini",
+            name = "Gemini",
+            packageName = GEMINI_PACKAGE_NAME,
+            playStoreUrl = "https://play.google.com/store/apps/details?id=$GEMINI_PACKAGE_NAME"
         )
     )
 

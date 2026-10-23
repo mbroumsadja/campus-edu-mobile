@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,7 +86,7 @@ fun SearchScreen(
 
     var filiereExpanded by remember { mutableStateOf(false) }
     var ecoleExpanded by remember { mutableStateOf(false) }
-    var showFilters by remember { mutableStateOf(true) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showTutorialDialog by remember { mutableStateOf(false) }
     var selectedDocForAiOptions by remember { mutableStateOf<LocalDownloadedDocument?>(null) }
@@ -3082,31 +3083,23 @@ fun DownloadedFilesSection(
     onOpenFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit,
     onShareFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
     onDeleteFile: (com.example.data.repository.LocalDownloadedDocument) -> Unit,
-    onOpenGeminiChat: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
-    onShareToGeminiApp: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
+    onStudyWithAi: (com.example.data.repository.LocalDownloadedDocument) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
-    var selectedNiveau by remember { mutableStateOf("Tous") }
     var selectedType by remember { mutableStateOf("Tous") }
     var isFilterExpanded by remember { mutableStateOf(false) }
-    var selectedDocForAiOptions by remember { mutableStateOf<com.example.data.repository.LocalDownloadedDocument?>(null) }
-    var docMissingGemini by remember { mutableStateOf<com.example.data.repository.LocalDownloadedDocument?>(null) }
 
-    val niveaux = listOf("Tous", "L1", "L2", "L3", "M1", "M2")
     val types = listOf("Tous", "Cours", "Sujets", "Corrigés")
 
-    val filteredFiles = remember(localFiles, searchQuery, selectedNiveau, selectedType) {
+    val filteredFiles = remember(localFiles, searchQuery, selectedType) {
         localFiles.filter { doc ->
             val matchesSearch = if (searchQuery.isBlank()) true else {
                 doc.formattedTitle.contains(searchQuery, ignoreCase = true) ||
                 doc.name.contains(searchQuery, ignoreCase = true) ||
                 doc.typeLabel.contains(searchQuery, ignoreCase = true) ||
                 doc.niveau.contains(searchQuery, ignoreCase = true)
-            }
-            val matchesNiveau = if (selectedNiveau == "Tous") true else {
-                doc.niveau.equals(selectedNiveau, ignoreCase = true)
             }
             val matchesType = if (selectedType == "Tous") true else {
                 when (selectedType) {
@@ -3116,7 +3109,7 @@ fun DownloadedFilesSection(
                     else -> true
                 }
             }
-            matchesSearch && matchesNiveau && matchesType
+            matchesSearch && matchesType
         }
     }
 
@@ -3144,7 +3137,7 @@ fun DownloadedFilesSection(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Téléchargez des cours magistraux, TD ou épreuves depuis le Catalogue ou la Recherche pour pouvoir les consulter ici et les étudier avec l'Assistant Gemini IA.",
+                        text = "Téléchargez des cours magistraux, TD ou épreuves depuis le Catalogue ou la Recherche pour pouvoir les consulter ici et les étudier avec l'IA.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -3178,7 +3171,7 @@ fun DownloadedFilesSection(
                             onClick = { isFilterExpanded = !isFilterExpanded },
                             modifier = Modifier.size(34.dp)
                         ) {
-                            val hasActiveFilter = selectedNiveau != "Tous" || selectedType != "Tous"
+                            val hasActiveFilter = selectedType != "Tous"
                             BadgedBox(
                                 badge = {
                                     if (hasActiveFilter) {
@@ -3204,7 +3197,7 @@ fun DownloadedFilesSection(
                 singleLine = true
             )
 
-            // Paramètres déroulables (Niveau & Type)
+            // Paramètres déroulables (Type de document uniquement, sans classement par niveau)
             AnimatedVisibility(
                 visible = isFilterExpanded,
                 enter = expandVertically() + fadeIn(),
@@ -3223,47 +3216,6 @@ fun DownloadedFilesSection(
                         modifier = Modifier.padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Classement par Niveau (L1, L2, L3, M1, M2)
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Classement par Niveau :",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(bottom = 3.dp)
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                niveaux.forEach { niv ->
-                                    val isSelected = selectedNiveau == niv
-                                    val count = if (niv == "Tous") localFiles.size else localFiles.count { it.niveau.equals(niv, ignoreCase = true) }
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { selectedNiveau = niv },
-                                        label = {
-                                            Text(
-                                                text = if (niv == "Tous") "Tous ($count)" else "$niv ($count)",
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        },
-                                        leadingIcon = if (isSelected) {
-                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                        } else null,
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    )
-                                }
-                            }
-                        }
-
                         // Classement par Type de document (Cours, Sujets, Corrigés)
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
@@ -3340,14 +3292,13 @@ fun DownloadedFilesSection(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Niveau : $selectedNiveau • Type : $selectedType",
+                            text = "Type : $selectedType",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
                             onClick = {
-                                selectedNiveau = "Tous"
                                 selectedType = "Tous"
                                 searchQuery = ""
                             },
@@ -3468,9 +3419,9 @@ fun DownloadedFilesSection(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    // Bouton IA Gemini avec document importé
+                                    // Bouton IA avec document importé
                                     Button(
-                                        onClick = { selectedDocForAiOptions = doc },
+                                        onClick = { onStudyWithAi(doc) },
                                         modifier = Modifier.height(34.dp),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         colors = ButtonDefaults.buttonColors(
@@ -3551,283 +3502,6 @@ fun DownloadedFilesSection(
                     }
                 }
             }
-        }
-
-        if (selectedDocForAiOptions != null) {
-            val doc = selectedDocForAiOptions!!
-            AlertDialog(
-                onDismissRequest = { selectedDocForAiOptions = null },
-                icon = {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = CircleShape,
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                },
-                title = {
-                    Text(
-                        text = "Étudier avec l'IA Gemini",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
-                },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PictureAsPdf,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = doc.formattedTitle,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 12.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "${doc.typeLabel} • ${doc.sizeFormatted}",
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-
-                        Text(
-                            text = "Choisissez comment explorer ce document avec l'IA :",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        // Option 1 : Ouvrir dans l'application Google Gemini
-                        Surface(
-                            onClick = {
-                                val target = doc
-                                selectedDocForAiOptions = null
-                                if (GeminiShareHelper.isGeminiInstalled(context)) {
-                                    onShareToGeminiApp(target)
-                                } else {
-                                    docMissingGemini = target
-                                }
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "App Google Gemini",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                            shape = RoundedCornerShape(4.dp)
-                                        ) {
-                                            Text(
-                                                text = "Officielle",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = "Ouvre une nouvelle discussion avec ce fichier déjà attaché (ACTION_SEND)",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        lineHeight = 14.sp
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        // Option 2 : Assistant Gemini IA Intégré
-                        Surface(
-                            onClick = {
-                                val target = doc
-                                selectedDocForAiOptions = null
-                                onOpenGeminiChat(target)
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.School,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onTertiary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "Assistant IA Intégré",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                                            shape = RoundedCornerShape(4.dp)
-                                        ) {
-                                            Text(
-                                                text = "Dans l'App",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.tertiary,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = "Chat académique interactif directement au sein de l'application",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        lineHeight = 14.sp
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { selectedDocForAiOptions = null }) {
-                        Text("Fermer")
-                    }
-                }
-            )
-        }
-
-        if (docMissingGemini != null) {
-            val target = docMissingGemini!!
-            AlertDialog(
-                onDismissRequest = { docMissingGemini = null },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
-                    )
-                },
-                title = {
-                    Text(
-                        text = "Application Gemini non installée",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-                },
-                text = {
-                    Text(
-                        text = "L'application officielle Google Gemini n'a pas été détectée sur votre appareil.\n\nVous pouvez l'installer depuis le Google Play Store pour créer automatiquement une discussion avec ce document attaché, ou partager le fichier avec une autre application.",
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            docMissingGemini = null
-                            GeminiShareHelper.promptInstallGemini(context)
-                        }
-                    ) {
-                        Text("Installer Gemini")
-                    }
-                },
-                dismissButton = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                docMissingGemini = null
-                                onShareFile(target)
-                            }
-                        ) {
-                            Text("Partager ailleurs")
-                        }
-                        TextButton(onClick = { docMissingGemini = null }) {
-                            Text("Annuler")
-                        }
-                    }
-                }
-            )
         }
     }
 }
