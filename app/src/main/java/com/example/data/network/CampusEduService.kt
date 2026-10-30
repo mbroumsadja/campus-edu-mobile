@@ -11,7 +11,12 @@ import retrofit2.http.Query
 import retrofit2.http.Streaming
 import retrofit2.http.Url
 
+/**
+ * Interface Retrofit pour Campus Edu.
+ */
 interface CampusEduService {
+
+    // --- Recherche de documents (cours, sujets, corrigés) ---
     @GET("api/search/documents")
     suspend fun searchDocuments(
         @Query("nom") nom: String? = null,
@@ -25,18 +30,18 @@ interface CampusEduService {
         @Query("type") type: String? = null
     ): Response<SearchDocumentsResponse>
 
+    // --- Écoles & Facultés ---
     @GET("api/ecoles")
     suspend fun getEcoles(): Response<EcoleResponse>
 
-    @GET("api/ecole")
-    suspend fun getEcoleSingle(): Response<EcoleResponse>
+    // --- Filières ---
+    @GET("api/filieres")
+    suspend fun getFilieres(
+        @Query("ecole_id") ecoleId: Int? = null,
+        @Query("ecole") ecole: String? = null
+    ): Response<FiliereResponse>
 
-    @GET("ecole")
-    suspend fun getEcoleDirect(): Response<EcoleResponse>
-
-    @GET("ecoles")
-    suspend fun getEcolesDirect(): Response<EcoleResponse>
-
+    // --- Téléchargements directs et via API ---
     @GET("api/search/documents/telecharger")
     @Streaming
     suspend fun downloadDocumentApi(
@@ -44,30 +49,6 @@ interface CampusEduService {
         @Query("id") id: Int,
         @Query("corrige") corrige: Boolean? = null
     ): Response<ResponseBody>
-
-    @GET("api/filieres")
-    suspend fun getFilieres(
-        @Query("ecole_id") ecoleId: Int? = null,
-        @Query("ecole") ecole: String? = null
-    ): Response<FiliereResponse>
-
-    @GET("api/filiere")
-    suspend fun getFiliereSingle(
-        @Query("ecole_id") ecoleId: Int? = null,
-        @Query("ecole") ecole: String? = null
-    ): Response<FiliereResponse>
-
-    @GET("filiere")
-    suspend fun getFiliereDirect(
-        @Query("ecole_id") ecoleId: Int? = null,
-        @Query("ecole") ecole: String? = null
-    ): Response<FiliereResponse>
-
-    @GET("filieres")
-    suspend fun getFilieresDirect(
-        @Query("ecole_id") ecoleId: Int? = null,
-        @Query("ecole") ecole: String? = null
-    ): Response<FiliereResponse>
 
     @GET("api/cours/{id}/telecharger")
     @Streaming
@@ -85,12 +66,6 @@ interface CampusEduService {
     @GET
     @Streaming
     suspend fun downloadFromUrl(
-        @Url url: String
-    ): Response<ResponseBody>
-
-    @GET
-    @Streaming
-    suspend fun downloadDirectUrl(
         @Url url: String
     ): Response<ResponseBody>
 }

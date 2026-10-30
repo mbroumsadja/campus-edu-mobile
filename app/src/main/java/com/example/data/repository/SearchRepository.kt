@@ -9,6 +9,7 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 
 class SearchRepository(private val service: CampusEduService) {
+
     suspend fun downloadFromUrl(url: String): Response<ResponseBody> {
         return service.downloadFromUrl(url)
     }
@@ -88,46 +89,10 @@ class SearchRepository(private val service: CampusEduService) {
     suspend fun getFilieres(ecoleId: Int? = null, ecole: String? = null): Response<FiliereResponse> {
         val formattedEcole = if (ecole.isNullOrBlank() || ecole.equals("Toutes", ignoreCase = true) || ecole.equals("Tout", ignoreCase = true)) null else ecole
         val realEcoleId = ecoleId?.takeIf { it > 0 }
-        return try {
-            val res1 = service.getFilieres(ecoleId = realEcoleId, ecole = formattedEcole)
-            if (res1.isSuccessful && res1.body()?.data?.isNotEmpty() == true) return res1
-            
-            val res2 = service.getFiliereSingle(ecoleId = realEcoleId, ecole = formattedEcole)
-            if (res2.isSuccessful && res2.body()?.data?.isNotEmpty() == true) return res2
-
-            val res3 = service.getFiliereDirect(ecoleId = realEcoleId, ecole = formattedEcole)
-            if (res3.isSuccessful && res3.body()?.data?.isNotEmpty() == true) return res3
-
-            val res4 = service.getFilieresDirect(ecoleId = realEcoleId, ecole = formattedEcole)
-            if (res4.isSuccessful && res4.body()?.data?.isNotEmpty() == true) return res4
-
-            res1
-        } catch (e: Exception) {
-            try { 
-                service.getFiliereSingle(ecoleId = realEcoleId, ecole = formattedEcole) 
-            } catch (_: Exception) { 
-                service.getFilieres(ecoleId = realEcoleId, ecole = formattedEcole) 
-            }
-        }
+        return service.getFilieres(ecoleId = realEcoleId, ecole = formattedEcole)
     }
 
     suspend fun getEcoles(): Response<EcoleResponse> {
-        return try {
-            val res1 = service.getEcoles()
-            if (res1.isSuccessful && res1.body()?.data?.isNotEmpty() == true) return res1
-
-            val res2 = service.getEcoleSingle()
-            if (res2.isSuccessful && res2.body()?.data?.isNotEmpty() == true) return res2
-
-            val res3 = service.getEcoleDirect()
-            if (res3.isSuccessful && res3.body()?.data?.isNotEmpty() == true) return res3
-
-            val res4 = service.getEcolesDirect()
-            if (res4.isSuccessful && res4.body()?.data?.isNotEmpty() == true) return res4
-
-            res1
-        } catch (e: Exception) {
-            try { service.getEcoleSingle() } catch (_: Exception) { service.getEcoles() }
-        }
+        return service.getEcoles()
     }
 }

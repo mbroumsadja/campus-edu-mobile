@@ -1,6 +1,7 @@
 package com.example.data.network
 
 import android.content.Context
+import com.example.BuildConfig
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -14,9 +15,14 @@ object NetworkModule {
 
     fun createService(context: Context): CampusEduService {
         val tokenProvider = TokenProvider(context)
-        
+
+        // Journal réseau désactivé en release pour éviter toute fuite (CE-34, ENF-06)
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.HEADERS
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.HEADERS
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
 
         val authInterceptor = AuthInterceptor(tokenProvider)

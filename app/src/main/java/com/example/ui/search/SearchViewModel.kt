@@ -892,6 +892,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun retrySearch() {
+        performSearch()
+    }
+
     fun loadMore() {
         val pag = _pagination.value ?: return
         if (pag.hasNext && uiState.value is SearchUiState.Success) {

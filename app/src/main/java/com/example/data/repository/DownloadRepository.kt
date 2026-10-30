@@ -36,7 +36,8 @@ data class LocalDownloadedDocument(
     val sizeFormatted: String,
     val lastModifiedMillis: Long,
     val niveau: String = "L1",
-    val typeCategory: String = "Cours"
+    val typeCategory: String = "Cours",
+    val originalKey: String = name.substringBeforeLast(".")
 )
 
 class DownloadRepository(private val service: CampusEduService) {

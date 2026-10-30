@@ -24,7 +24,10 @@ data class UeWithDocuments(
     val filiereCode: String? = null,
     val filiereNom: String? = null,
     val ecoleNom: String? = null
-)
+) {
+    val nom: String
+        get() = intitule
+}
 
 @JsonClass(generateAdapter = true)
 data class Cours(
@@ -84,6 +87,12 @@ data class Sujet(
             lienTelechargement ?: cheminFichier
         }
     }
+
+    val anneeAcademique: String?
+        get() = annee
+
+    val tailleFichier: Long?
+        get() = null
 }
 
 @JsonClass(generateAdapter = true)
@@ -149,6 +158,8 @@ data class ApiDocumentItem(
     val intitule_ue: String? = null,
     val annee_academique: String? = null,
     val annee: String? = null,
+    val session: String? = null,
+    val avec_corrige: Boolean? = null,
     val telechargements: Int? = null,
     val disponible: Boolean? = true,
     val deja_telecharge: Boolean? = false

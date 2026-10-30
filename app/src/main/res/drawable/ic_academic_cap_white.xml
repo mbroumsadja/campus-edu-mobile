@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+    <!-- Blue Circular Background -->
+    <path
+        android:fillColor="#0D47A1"
+        android:pathData="M48,48m-46,0a46,46 0,1 1,92 0a46,46 0,1 1,-92 0" />
+
+    <!-- White Graduation Cap Top Diamond -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,26 L78,39 L48,52 L18,39 Z" />
+
+    <!-- White Cap Base Underneath -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,47 L28,58 C28,66 36,70 48,70 C60,70 68,66 68,58 L68,47 C63,50 56,51.8 48,51.8 C40,51.8 33,50 28,47 Z" />
+
+    <!-- White/Gold Tassel -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M72,41 L72,60" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,60 L74,60 L74,66 L70,66 Z" />
+</vector>
