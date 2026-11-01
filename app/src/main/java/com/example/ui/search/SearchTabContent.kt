@@ -1,7 +1,11 @@
 package com.example.ui.search
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -12,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,20 +44,23 @@ import com.example.ui.search.components.CoursItemCard
 import com.example.ui.search.components.SujetItemCard
 
 /**
- * Page de recherche académique de CAMPUS EDUCATIF :
- *  - Logo du chapeau académique blanc.
- *  - Titre en majuscule "CAMPUS EDUCATIF" sans aucun sous-texte.
- *  - La barre de recherche reste au centre de la page au repos.
- *  - Ce n'est que lorsque l'utilisateur tape que les résultats se chargent.
- *  - Téléchargement automatique en cliquant sur les cartes.
+ * Page de recherche académique de CAMPUS EDUCATIF.
+ * Conçue pour une fluidité de frappe 100% stable :
+ *  - Un seul composant de barre de recherche dans l'arbre Compose pour ne JAMAIS couper à la première lettre.
+ *  - Transition douce entre l'état centré et les résultats.
+ *  - Espace de 26dp sous la barre de recherche.
+ *  - Logo du chapeau académique blanc et titre en majuscule sans sous-texte.
+ *  - Téléchargement au clic et classement par pertinence.
  */
 @Composable
 fun SearchTabContent(
     viewModel: SearchViewModel,
     profile: StudentProfile,
     onEditProfile: () -> Unit,
-    onStudyCoursWithAi: (Cours) -> Unit,
-    onStudySujetWithAi: (Sujet, Boolean) -> Unit,
+    onDownloadCours: (Cours, UeWithDocuments) -> Unit,
+    onDownloadSujet: (Sujet, Boolean, UeWithDocuments) -> Unit,
+    onStudyCoursWithAi: (Cours, UeWithDocuments) -> Unit,
+    onStudySujetWithAi: (Sujet, Boolean, UeWithDocuments) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -64,9 +72,23 @@ fun SearchTabContent(
     val pagination by viewModel.pagination.collectAsState()
     val downloadedDocs by viewModel.downloadedDocuments.collectAsState()
     val activeDownloads by viewModel.activeDownloads.collectAsState()
+    val isOfflineSearch by viewModel.isOfflineSearch.collectAsState()
+    val isUpdateRequired by com.example.data.network.VersionUpdateManager.isUpdateRequired.collectAsState()
 
-    var localQuery by remember(searchQuery) { mutableStateOf(searchQuery) }
-    val isSearching = localQuery.isNotBlank()
+    var reportingSujet by remember { mutableStateOf<Sujet?>(null) }
+    var showMissingSujetDialog by remember { mutableStateOf(false) }
+
+    // État local stable indépendant pour éviter toute désynchronisation du clavier
+    var localQuery by remember { mutableStateOf(searchQuery) }
+
+    // Synchronisation uniquement si réinitialisé extérieurement
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isEmpty() && localQuery.isNotEmpty()) {
+            localQuery = ""
+        }
+    }
+
+    val isSearchingOrActive = localQuery.isNotBlank() || uiState !is SearchUiState.Idle
 
     Column(
         modifier = modifier
@@ -75,84 +97,55 @@ fun SearchTabContent(
             .padding(horizontal = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (!isSearching) {
-            // Vue au repos : La barre de recherche reste au centre de la page
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 60.dp),
-                contentAlignment = Alignment.Center
+        if (!isSearchingOrActive) {
+            // ÉTAT REPOS : Espace pour centrer
+            Spacer(modifier = Modifier.weight(0.5f))
+
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primaryContainer),
+                shadowElevation = 6.dp,
+                modifier = Modifier.size(86.dp)
             ) {
-                Column(
+                Image(
+                    painter = painterResource(id = R.drawable.ic_academic_cap_white),
+                    contentDescription = "Logo Campus Educatif",
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 520.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Logo chapeau académique blanc
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primaryContainer),
-                        shadowElevation = 6.dp,
-                        modifier = Modifier.size(92.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                            contentDescription = "Logo Campus Educatif",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Titre CAMPUS EDUCATIF en MAJUSCULE sans sous-texte
-                    Text(
-                        text = "CAMPUS EDUCATIF",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.2.sp,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(28.dp))
-
-                    // Barre de recherche rectangulaire centrée avec bordure
-                    RectangularSearchBar(
-                        query = localQuery,
-                        onQueryChange = { newValue ->
-                            localQuery = newValue
-                            viewModel.updateSearchQuery(newValue)
-                        },
-                        onClear = {
-                            localQuery = ""
-                            viewModel.updateSearchQuery("")
-                        },
-                        onSearch = { focusManager.clearFocus() },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
             }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = "CAMPUS EDUCATIF",
+                fontSize = 28.sp,
+                fontFamily = com.example.ui.theme.AntonFontFamily,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 0.5.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
         } else {
-            // Vue active lorsque l'utilisateur commence à taper du texte
-            Spacer(modifier = Modifier.height(8.dp))
+            // ÉTAT CHARGEMENT / RECHERCHE ACTIVE : Positionnement en haut à exactement 5px du top
+            Spacer(modifier = Modifier.height(5.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 2.dp)
             ) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primaryContainer),
-                    shadowElevation = 3.dp,
-                    modifier = Modifier.size(42.dp)
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primaryContainer),
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.size(34.dp)
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_academic_cap_white),
@@ -163,39 +156,95 @@ fun SearchTabContent(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
                     text = "CAMPUS EDUCATIF",
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = com.example.ui.theme.AntonFontFamily,
+                    fontWeight = FontWeight.Normal,
                     color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.1.sp
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.weight(1f)
                 )
+
+                // Accès direct à la modification du profil d'études (icône Edit)
+                IconButton(
+                    onClick = onEditProfile,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Modifier mon profil",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+        }
 
-            // Barre de recherche rectangulaire
-            RectangularSearchBar(
-                query = localQuery,
-                onQueryChange = { newValue ->
-                    localQuery = newValue
-                    viewModel.updateSearchQuery(newValue)
-                },
-                onClear = {
-                    localQuery = ""
-                    viewModel.updateSearchQuery("")
-                },
-                onSearch = { focusManager.clearFocus() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 600.dp)
-            )
+        // ==============================================================
+        // BARRE DE RECHERCHE UNIQUE ET PERSISTANTE
+        // Ne jamais recréer ce composant lors de la frappe
+        // ==============================================================
+        RectangularSearchBar(
+            query = localQuery,
+            onQueryChange = { newValue ->
+                localQuery = newValue
+                viewModel.updateSearchQuery(newValue)
+            },
+            onClear = {
+                localQuery = ""
+                viewModel.updateSearchQuery("")
+            },
+            onSearch = { focusManager.clearFocus() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 600.dp)
+        )
 
-            Spacer(modifier = Modifier.height(26.dp))
+        Spacer(modifier = Modifier.height(if (isSearchingOrActive) 14.dp else 16.dp))
 
-            // Résultats chargés dès la saisie
+        if (!isSearchingOrActive) {
+            // Bouton de consultation et de modification de la filière enregistrée (icône Edit)
+            Surface(
+                onClick = onEditProfile,
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${profile.filiereCode ?: profile.filiereNom ?: "Filière"} • ${profile.niveau}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Modifier",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(0.9f))
+        } else {
+            // Zone de résultats et chargement
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -236,7 +285,7 @@ fun SearchTabContent(
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.SearchOff,
@@ -250,6 +299,23 @@ fun SearchTabContent(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = { showMissingSujetDialog = true },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Il manque un sujet ?", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -257,83 +323,156 @@ fun SearchTabContent(
                     is SearchUiState.Success -> {
                         val rawUes = state.results
 
-                        // Tri par pertinence (filière en premier)
+                        // Filtrage strict si "Uniquement mes cours" est coché, sinon classement par pertinence
                         val sortedUes = remember(rawUes, profile) {
-                            rawUes.sortedWith(
-                                compareByDescending<UeWithDocuments> { ue ->
+                            if (profile.onlyMyCourses && profile.isConfigured) {
+                                rawUes.mapNotNull { ue ->
                                     val matchFiliere = !profile.filiereCode.isNullOrBlank() &&
                                         (ue.filiereCode?.equals(profile.filiereCode, ignoreCase = true) == true ||
-                                         ue.filiereNom?.contains(profile.filiereNom ?: "", ignoreCase = true) == true)
+                                         ue.filiereNom?.contains(profile.filiereNom ?: "", ignoreCase = true) == true ||
+                                         (profile.filiereNom != null && ue.filiereNom?.equals(profile.filiereNom, ignoreCase = true) == true))
                                     val matchNiveau = !profile.niveau.isBlank() &&
                                         ue.niveau?.equals(profile.niveau, ignoreCase = true) == true
 
-                                    when {
-                                        matchFiliere && matchNiveau -> 3
-                                        matchFiliere -> 2
-                                        !profile.ecoleNom.isNullOrBlank() && ue.ecoleNom?.contains(profile.ecoleNom, ignoreCase = true) == true -> 1
-                                        else -> 0
+                                    if (matchFiliere && matchNiveau && !ue.cours.isNullOrEmpty()) {
+                                        // Uniquement les cours de cette filière et ce niveau (sujets vidés)
+                                        ue.copy(sujets = emptyList())
+                                    } else {
+                                        null
                                     }
                                 }
-                            )
-                        }
+                            } else {
+                                rawUes.sortedWith(
+                                    compareByDescending<UeWithDocuments> { ue ->
+                                        val matchFiliere = !profile.filiereCode.isNullOrBlank() &&
+                                            (ue.filiereCode?.equals(profile.filiereCode, ignoreCase = true) == true ||
+                                             ue.filiereNom?.contains(profile.filiereNom ?: "", ignoreCase = true) == true)
+                                        val matchNiveau = !profile.niveau.isBlank() &&
+                                            ue.niveau?.equals(profile.niveau, ignoreCase = true) == true
 
-                        if (sortedUes.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Aucun résultat pour cette recherche.",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        when {
+                                            matchFiliere && matchNiveau -> 3
+                                            matchFiliere -> 2
+                                            !profile.ecoleNom.isNullOrBlank() && ue.ecoleNom?.contains(profile.ecoleNom, ignoreCase = true) == true -> 1
+                                            else -> 0
+                                        }
+                                    }
                                 )
                             }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                items(sortedUes, key = { it.id }) { ue ->
-                                    SearchUeCard(
-                                        ue = ue,
-                                        downloadedDocs = downloadedDocs,
-                                        activeDownloads = activeDownloads,
-                                        onDownloadCours = { c -> viewModel.downloadCours(context, c) },
-                                        onOpenCours = { c -> viewModel.openDownloadedCours(context, c) },
-                                        onShareCours = { c -> viewModel.shareDownloadedCours(context, c) },
-                                        onDeleteCours = { c -> viewModel.deleteDownloadedCours(context, c) },
-                                        onStudyCoursWithAi = { c -> onStudyCoursWithAi(c) },
-                                        onDownloadSujet = { s, isCorrige -> viewModel.downloadSujet(context, s, isCorrige) },
-                                        onOpenSujet = { s, isCorrige -> viewModel.openDownloadedSujet(context, s, isCorrige) },
-                                        onShareSujet = { s, isCorrige -> viewModel.shareDownloadedSujet(context, s, isCorrige) },
-                                        onDeleteSujet = { s, isCorrige -> viewModel.deleteDownloadedSujet(context, s, isCorrige) },
-                                        onStudySujetWithAi = { s, isCorrige -> onStudySujetWithAi(s, isCorrige) }
-                                    )
-                                }
+                        }
 
-                                // Pagination
-                                item {
-                                    pagination?.let { pag ->
-                                        if (pag.hasNext) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 10.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                OutlinedButton(
-                                                    onClick = { viewModel.loadMore() },
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    colors = ButtonDefaults.outlinedButtonColors(
-                                                        contentColor = MaterialTheme.colorScheme.primary
-                                                    ),
-                                                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            if (isOfflineSearch) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CloudOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Connexion internet indisponible - Recherche dans vos cours téléchargés",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (sortedUes.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            text = "Aucun résultat pour cette recherche.",
+                                            fontSize = 13.sp,
+                                            textAlign = TextAlign.Center,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        OutlinedButton(
+                                            onClick = { showMissingSujetDialog = true },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.primary
+                                            ),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Il manque un sujet ?", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    items(sortedUes, key = { it.id }) { ue ->
+                                        SearchUeCard(
+                                            ue = ue,
+                                            downloadedDocs = downloadedDocs,
+                                            activeDownloads = activeDownloads,
+                                            onDownloadCours = { c -> onDownloadCours(c, ue) },
+                                            onOpenCours = { c -> viewModel.openDownloadedCours(context, c) },
+                                            onShareCours = { c -> viewModel.shareDownloadedCours(context, c) },
+                                            onDeleteCours = { c -> viewModel.deleteDownloadedCours(context, c) },
+                                            onStudyCoursWithAi = { c -> onStudyCoursWithAi(c, ue) },
+                                            onDownloadSujet = { s, isCorrige -> onDownloadSujet(s, isCorrige, ue) },
+                                            onOpenSujet = { s, isCorrige -> viewModel.openDownloadedSujet(context, s, isCorrige) },
+                                            onShareSujet = { s, isCorrige -> viewModel.shareDownloadedSujet(context, s, isCorrige) },
+                                            onDeleteSujet = { s, isCorrige -> viewModel.deleteDownloadedSujet(context, s, isCorrige) },
+                                            onStudySujetWithAi = { s, isCorrige -> onStudySujetWithAi(s, isCorrige, ue) },
+                                            onReportSujet = { s -> reportingSujet = s }
+                                        )
+                                    }
+
+                                    item {
+                                        pagination?.let { pag ->
+                                            if (pag.hasNext) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 10.dp),
+                                                    contentAlignment = Alignment.Center
                                                 ) {
-                                                    Text("Charger plus de documents", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    OutlinedButton(
+                                                        onClick = { viewModel.loadMore() },
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        colors = ButtonDefaults.outlinedButtonColors(
+                                                            contentColor = MaterialTheme.colorScheme.primary
+                                                        ),
+                                                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                                                    ) {
+                                                        Text("Charger plus de documents", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Icon(Icons.Default.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    }
                                                 }
                                             }
                                         }
@@ -350,6 +489,54 @@ fun SearchTabContent(
             }
         }
     }
+
+    if (isUpdateRequired) {
+        ForceUpdateDialog(
+            onUpdateClick = {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${context.packageName}"))
+                    context.startActivity(intent)
+                } catch (_: Exception) {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}"))
+                    context.startActivity(intent)
+                }
+            }
+        )
+    }
+
+    reportingSujet?.let { sujet ->
+        SignalementDialog(
+            sujet = sujet,
+            onDismiss = { reportingSujet = null },
+            onSubmit = { msg, contact ->
+                viewModel.submitDemande(
+                    type = "signalement",
+                    sujetId = sujet.id,
+                    message = msg,
+                    contact = contact
+                ) { success, note ->
+                    reportingSujet = null
+                    Toast.makeText(context, note, Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    if (showMissingSujetDialog) {
+        DemandeMissingSujetDialog(
+            onDismiss = { showMissingSujetDialog = false },
+            onSubmit = { msg, contact ->
+                viewModel.submitDemande(
+                    type = "sujet_manquant",
+                    message = msg,
+                    contact = contact
+                ) { success, note ->
+                    showMissingSujetDialog = false
+                    Toast.makeText(context, note, Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -362,8 +549,8 @@ private fun RectangularSearchBar(
 ) {
     Surface(
         modifier = modifier
-            .shadow(elevation = 2.dp, shape = RoundedCornerShape(6.dp)),
-        shape = RoundedCornerShape(6.dp),
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
     ) {
@@ -404,7 +591,7 @@ private fun RectangularSearchBar(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
             ),
-            shape = RoundedCornerShape(6.dp),
+            shape = RoundedCornerShape(22.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("search_text_input")
@@ -426,7 +613,8 @@ private fun SearchUeCard(
     onOpenSujet: (Sujet, Boolean) -> Unit,
     onShareSujet: (Sujet, Boolean) -> Unit,
     onDeleteSujet: (Sujet, Boolean) -> Unit,
-    onStudySujetWithAi: (Sujet, Boolean) -> Unit
+    onStudySujetWithAi: (Sujet, Boolean) -> Unit,
+    onReportSujet: (Sujet) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -535,6 +723,7 @@ private fun SearchUeCard(
                         onStudyCorrigeWithAi = { onStudySujetWithAi(s1, true) },
                         onShareCorrige = { onShareSujet(s1, true) },
                         onDeleteCorrige = { onDeleteSujet(s1, true) },
+                        onReport = { onReportSujet(s1) },
                         modifier = Modifier.weight(1f)
                     )
 
@@ -559,6 +748,7 @@ private fun SearchUeCard(
                             onStudyCorrigeWithAi = { onStudySujetWithAi(s2, true) },
                             onShareCorrige = { onShareSujet(s2, true) },
                             onDeleteCorrige = { onDeleteSujet(s2, true) },
+                            onReport = { onReportSujet(s2) },
                             modifier = Modifier.weight(1f)
                         )
                     } else {
@@ -608,4 +798,187 @@ private fun SearchErrorBox(
             }
         }
     }
+}
+
+@Composable
+fun SignalementDialog(
+    sujet: Sujet,
+    onDismiss: () -> Unit,
+    onSubmit: (String, String?) -> Unit
+) {
+    var message by remember { mutableStateOf("") }
+    var contact by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Signaler un problème", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Épreuve : ${sujet.titre}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it; errorMessage = null },
+                    label = { Text("Description du problème *") },
+                    placeholder = { Text("Ex: Page manquante, mauvaise session... (10 à 1000 car.)") },
+                    minLines = 3,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = contact,
+                    onValueChange = { contact = it },
+                    label = { Text("Contact (facultatif)") },
+                    placeholder = { Text("Email ou téléphone") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage ?: "",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (message.trim().length < 10) {
+                        errorMessage = "Le message doit comporter au moins 10 caractères."
+                    } else if (message.trim().length > 1000) {
+                        errorMessage = "Le message ne doit pas dépasser 1000 caractères."
+                    } else {
+                        isSubmitting = true
+                        onSubmit(message.trim(), contact.trim().takeIf { it.isNotBlank() })
+                    }
+                },
+                enabled = !isSubmitting
+            ) {
+                Text("Envoyer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
+
+@Composable
+fun DemandeMissingSujetDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String, String?) -> Unit
+) {
+    var message by remember { mutableStateOf("") }
+    var contact by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Demande de sujet manquant", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Indiquez l'épreuve ou le cours que vous recherchez.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it; errorMessage = null },
+                    label = { Text("Détails du document *") },
+                    placeholder = { Text("Filière, UE, niveau, année, session... (10 à 1000 car.)") },
+                    minLines = 3,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = contact,
+                    onValueChange = { contact = it },
+                    label = { Text("Contact (facultatif)") },
+                    placeholder = { Text("Email ou téléphone") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage ?: "",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (message.trim().length < 10) {
+                        errorMessage = "Le message doit comporter au moins 10 caractères."
+                    } else if (message.trim().length > 1000) {
+                        errorMessage = "Le message ne doit pas dépasser 1000 caractères."
+                    } else {
+                        isSubmitting = true
+                        onSubmit(message.trim(), contact.trim().takeIf { it.isNotBlank() })
+                    }
+                },
+                enabled = !isSubmitting
+            ) {
+                Text("Envoyer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
+
+@Composable
+fun ForceUpdateDialog(
+    onUpdateClick: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* Mise à jour obligatoire bloquante */ },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.SystemUpdate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Mise à jour obligatoire", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+        },
+        text = {
+            Text(
+                text = "Une nouvelle version de Campus Éducatif est disponible et requise pour continuer à télécharger et explorer les épreuves et cours.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onUpdateClick,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Mettre à jour")
+            }
+        }
+    )
 }

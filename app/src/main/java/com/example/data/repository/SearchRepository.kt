@@ -56,14 +56,16 @@ class SearchRepository(private val service: CampusEduService) {
         ecole: String? = null,
         ecoleId: Int? = null,
         annee: String? = null,
-        type: String? = null
+        type: String? = null,
+        page: Int? = null,
+        limit: Int? = null
     ): Response<SearchDocumentsResponse> {
         val formattedNom = if (nom.isNullOrBlank()) null else nom
         val formattedQ = if (q.isNullOrBlank()) null else q
         val formattedNiveau = if (niveau.isNullOrBlank() || niveau.equals("Tous", ignoreCase = true) || niveau.equals("Tout", ignoreCase = true)) null else niveau
         val formattedFiliere = if (filiereCode.isNullOrBlank() || filiereCode.equals("Toutes", ignoreCase = true) || filiereCode.equals("Tout", ignoreCase = true)) null else filiereCode
         val formattedEcole = if (ecole.isNullOrBlank() || ecole.equals("Toutes", ignoreCase = true) || ecole.equals("Tout", ignoreCase = true)) null else ecole
-        val formattedAnnee = if (annee.isNullOrBlank() || annee.equals("Toutes", ignoreCase = true) || annee.equals("Tout", ignoreCase = true)) null else annee
+        val formattedAnnee = if (annee.isNullOrBlank() || annee.equals("Toutes", ignoreCase = true) || annee.equals("Tous", ignoreCase = true)) null else annee
         val formattedType = if (type.isNullOrBlank() || type.equals("Tous", ignoreCase = true) || type.equals("Tout", ignoreCase = true)) null else type.lowercase()
 
         // L'API Vercel exige au moins un filtre ou mot-clé pour éviter un HTTP 400
@@ -82,7 +84,9 @@ class SearchRepository(private val service: CampusEduService) {
             ecole = formattedEcole,
             ecoleId = ecoleId,
             annee = formattedAnnee,
-            type = formattedType
+            type = formattedType,
+            page = page,
+            limit = limit
         )
     }
 
@@ -95,4 +99,13 @@ class SearchRepository(private val service: CampusEduService) {
     suspend fun getEcoles(): Response<EcoleResponse> {
         return service.getEcoles()
     }
+
+    suspend fun getConfig(): Response<com.example.data.model.AppConfigResponse> {
+        return service.getConfig()
+    }
+
+    suspend fun submitDemande(demande: com.example.data.model.DemandeRequest): Response<com.example.data.model.DemandeResponse> {
+        return service.submitDemande(demande)
+    }
 }
+

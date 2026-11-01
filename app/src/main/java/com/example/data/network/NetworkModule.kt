@@ -4,11 +4,19 @@ import android.content.Context
 import com.example.BuildConfig
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import kotlinx.coroutines.flow.MutableStateFlow
+import okhttp3.Cache
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.io.File
 import java.util.concurrent.TimeUnit
+
+object VersionUpdateManager {
+    val isUpdateRequired = MutableStateFlow(false)
+    val minimumVersion = MutableStateFlow("")
+}
 
 object NetworkModule {
     private const val BASE_URL = "https://campus-edu-backend.vercel.app/"
@@ -27,7 +35,14 @@ object NetworkModule {
 
         val authInterceptor = AuthInterceptor(tokenProvider)
 
+        // Cache disque OkHttp pour la mise en cache automatique des GET publics (Cache-Control & ETag 304)
+        val cacheDir = File(context.cacheDir, "http_cache")
+        val cache = Cache(cacheDir, 20L * 1024L * 1024L) // 20 Mo
+
         val okHttpClient = OkHttpClient.Builder()
+            .cache(cache)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .addInterceptor(authInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -48,3 +63,4 @@ object NetworkModule {
         return retrofit.create(CampusEduService::class.java)
     }
 }
+

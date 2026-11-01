@@ -3,9 +3,9 @@
     android:height="96dp"
     android:viewportWidth="96"
     android:viewportHeight="96">
-    <!-- Blue Circular Background -->
+    <!-- Blue Circular Background adaptive to light and dark theme -->
     <path
-        android:fillColor="#0D47A1"
+        android:fillColor="@color/logo_cap_background"
         android:pathData="M48,48m-46,0a46,46 0,1 1,92 0a46,46 0,1 1,-92 0" />
 
     <!-- White Graduation Cap Top Diamond -->

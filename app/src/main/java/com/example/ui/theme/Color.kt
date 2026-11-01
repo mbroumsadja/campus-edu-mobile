@@ -2,50 +2,57 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Academic Blue Theme for Campus Educatif
-val BluePrimary = Color(0xFF0D47A1)         // Deep Academic Blue
-val BlueOnPrimary = Color(0xFFFFFFFF)
-val BluePrimaryContainer = Color(0xFFE3F2FD)  // Light pastel blue container
-val BlueOnPrimaryContainer = Color(0xFF001D36)
+// Midnight / Noir theme matching the startup logo (App Logo Icon: deep midnight navy/noir with neon electric cyan blue)
+val MidnightBackground = Color(0xFF080D1A)         // Deep midnight noir
+val MidnightOnBackground = Color(0xFFF8FAFC)       // Crisp white
 
-val BlueSecondary = Color(0xFF1976D2)       // Bright Royal Blue
-val BlueOnSecondary = Color(0xFFFFFFFF)
-val BlueSecondaryContainer = Color(0xFFBBDEFB)
-val BlueOnSecondaryContainer = Color(0xFF0D47A1)
+val MidnightSurface = Color(0xFF0F172A)            // Midnight dark slate
+val MidnightOnSurface = Color(0xFFF8FAFC)
+val MidnightSurfaceVariant = Color(0xFF1E293B)     // Elevated slate surface / borders
+val MidnightOnSurfaceVariant = Color(0xFF94A3B8)   // Muted slate text
 
-val BlueTertiary = Color(0xFF0288D1)        // Cyan / Sky Accent
-val BlueOnTertiary = Color(0xFFFFFFFF)
-val BlueTertiaryContainer = Color(0xFFE1F5FE)
-val BlueOnTertiaryContainer = Color(0xFF01579B)
+val MidnightPrimary = Color(0xFF38BDF8)            // Electric cyan/blue from glowing cap
+val MidnightOnPrimary = Color(0xFF080D1A)
+val MidnightPrimaryContainer = Color(0xFF0C4A6E)   // Deep glowing cyan container
+val MidnightOnPrimaryContainer = Color(0xFFBAE6FD)
 
-val BlueBackground = Color(0xFFF8FAFC)      // Crisp slate/blue tinted background
-val BlueOnBackground = Color(0xFF0F172A)
-val BlueSurface = Color(0xFFFFFFFF)
-val BlueOnSurface = Color(0xFF0F172A)
-val BlueSurfaceVariant = Color(0xFFEEF2F6)  // Very soft blue-grey
-val BlueOnSurfaceVariant = Color(0xFF475569)
-val BlueOutline = Color(0xFF94A3B8)
-val BlueOutlineVariant = Color(0xFFCBD5E1)
+val MidnightSecondary = Color(0xFF60A5FA)          // Sky royal blue
+val MidnightOnSecondary = Color(0xFF080D1A)
+val MidnightSecondaryContainer = Color(0xFF1E293B)
+val MidnightOnSecondaryContainer = Color(0xFFE2E8F0)
 
-// Dark Theme Variants
-val BluePrimaryDark = Color(0xFF90CAF9)
-val BlueOnPrimaryDark = Color(0xFF003258)
-val BluePrimaryContainerDark = Color(0xFF0D47A1)
-val BlueOnPrimaryContainerDark = Color(0xFFD0E4FF)
+val MidnightTertiary = Color(0xFF00E5FF)           // Neon cyan accent
+val MidnightOnTertiary = Color(0xFF080D1A)
+val MidnightTertiaryContainer = Color(0xFF083344)
+val MidnightOnTertiaryContainer = Color(0xFFA5F3FC)
 
-val BlueSecondaryDark = Color(0xFF64B5F6)
-val BlueOnSecondaryDark = Color(0xFF003258)
-val BlueSecondaryContainerDark = Color(0xFF1565C0)
-val BlueOnSecondaryContainerDark = Color(0xFFE3F2FD)
+val MidnightOutline = Color(0xFF334155)            // Subtle border
+val MidnightOutlineVariant = Color(0xFF1E293B)
 
-val BlueTertiaryDark = Color(0xFF81D4FA)
-val BlueOnTertiaryDark = Color(0xFF00344F)
-val BlueTertiaryContainerDark = Color(0xFF0288D1)
-val BlueOnTertiaryContainerDark = Color(0xFFE1F5FE)
+// Light Theme colors - Clean blue & white adaptive theme
+val LightBackground = Color(0xFFF8FAFC)            // Clean off-white
+val LightOnBackground = Color(0xFF0F172A)          // Dark slate text
 
-val BlueBackgroundDark = Color(0xFF0B1320)
-val BlueOnBackgroundDark = Color(0xFFE2E8F0)
-val BlueSurfaceDark = Color(0xFF131E30)
-val BlueOnSurfaceDark = Color(0xFFE2E8F0)
-val BlueSurfaceVariantDark = Color(0xFF1E293B)
-val BlueOnSurfaceVariantDark = Color(0xFF94A3B8)
+val LightSurface = Color(0xFFFFFFFF)               // Pure white cards
+val LightOnSurface = Color(0xFF0F172A)
+val LightSurfaceVariant = Color(0xFFF1F5F9)        // Soft gray/slate surface
+val LightOnSurfaceVariant = Color(0xFF475569)      // Muted slate text
+
+val LightPrimary = Color(0xFF0284C7)               // Vibrant university blue
+val LightOnPrimary = Color(0xFFFFFFFF)
+val LightPrimaryContainer = Color(0xFFE0F2FE)      // Soft sky blue container
+val LightOnPrimaryContainer = Color(0xFF0369A1)
+
+val LightSecondary = Color(0xFF2563EB)             // Royal blue
+val LightOnSecondary = Color(0xFFFFFFFF)
+val LightSecondaryContainer = Color(0xFFDBEAFE)
+val LightOnSecondaryContainer = Color(0xFF1E40AF)
+
+val LightTertiary = Color(0xFF0EA5E9)              // Sky blue accent
+val LightOnTertiary = Color(0xFFFFFFFF)
+val LightTertiaryContainer = Color(0xFFE0F2FE)
+val LightOnTertiaryContainer = Color(0xFF0369A1)
+
+val LightOutline = Color(0xFFCBD5E1)               // Subtle border
+val LightOutlineVariant = Color(0xFFE2E8F0)
+

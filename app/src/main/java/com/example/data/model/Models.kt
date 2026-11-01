@@ -33,18 +33,20 @@ data class UeWithDocuments(
 data class Cours(
     val id: Int,
     val titre: String,
-    val description: String?,
-    val type: String?, // pdf, video, slide, autre
-    val cheminFichier: String?,
+    val description: String? = null,
+    val type: String? = null, // pdf, video, slide, autre
+    val cheminFichier: String? = null,
     val lienTelechargement: String? = null,
-    val nomFichierOriginal: String?,
-    val tailleFichier: Long?,
-    val statut: String?,
-    val anneAcademique: String?,
-    val vues: Int?,
-    val telechargemements: Int?,
-    val ue_id: Int?,
-    val enseignant_id: Int?,
+    val nomFichierOriginal: String? = null,
+    val tailleFichier: Long? = null,
+    val statut: String? = null,
+    val anneAcademique: String? = null,
+    val annee_academique: String? = null,
+    val taille_lisible: String? = null,
+    val vues: Int? = null,
+    val telechargemements: Int? = null,
+    val ue_id: Int? = null,
+    val enseignant_id: Int? = null,
     val deja_telecharge: Boolean? = false,
     val disponible: Boolean? = true,
     val filiereCode: String? = null,
@@ -53,24 +55,37 @@ data class Cours(
 ) {
     val downloadUrl: String?
         get() = lienTelechargement ?: cheminFichier
+
+    val anneeAcademique: String?
+        get() = annee_academique ?: anneAcademique
+
+    val tailleLisible: String?
+        get() = taille_lisible
 }
 
 @JsonClass(generateAdapter = true)
 data class Sujet(
     val id: Int,
     val titre: String,
-    val type: String?, // partiel, rattrapage, terminal, tp, td
-    val session: String?, // normale, rattrapage
-    val annee: String?,
-    val cheminFichier: String?,
+    val type: String? = null, // partiel, rattrapage, terminal, tp, td
+    val type_epreuve: String? = null,
+    val session: String? = null, // normale, rattrapage
+    val annee: String? = null,
+    val annee_academique: String? = null,
+    val cheminFichier: String? = null,
     val lienTelechargement: String? = null,
-    val avecCorrige: Boolean?,
-    val cheminCorrige: String?,
+    val lien_telechargement: String? = null,
+    val avecCorrige: Boolean? = null,
+    val avec_corrige: Boolean? = null,
+    val cheminCorrige: String? = null,
     val lienCorrigeTelechargement: String? = null,
-    val statut: String?,
-    val telechargemements: Int?,
-    val ue_id: Int?,
-    val enseignant_id: Int?,
+    val lien_corrige: String? = null,
+    val taille_lisible: String? = null,
+    val taille_octets: Long? = null,
+    val statut: String? = null,
+    val telechargemements: Int? = null,
+    val ue_id: Int? = null,
+    val enseignant_id: Int? = null,
     val deja_telecharge: Boolean? = false,
     val disponible: Boolean? = true,
     val filiereCode: String? = null,
@@ -78,31 +93,37 @@ data class Sujet(
     val ecoleNom: String? = null
 ) {
     val downloadUrl: String?
-        get() = lienTelechargement ?: cheminFichier
+        get() = lien_telechargement ?: lienTelechargement ?: cheminFichier
 
     fun getDownloadUrlForCorrige(isCorrige: Boolean): String? {
         return if (isCorrige) {
-            lienCorrigeTelechargement ?: cheminCorrige ?: lienTelechargement ?: cheminFichier
+            lien_corrige ?: lienCorrigeTelechargement ?: cheminCorrige ?: downloadUrl
         } else {
-            lienTelechargement ?: cheminFichier
+            downloadUrl
         }
     }
 
     val anneeAcademique: String?
-        get() = annee
+        get() = annee_academique ?: annee
 
-    val tailleFichier: Long?
-        get() = null
+    val typeEpreuve: String?
+        get() = type_epreuve ?: type
+
+    val hasCorrige: Boolean
+        get() = (avec_corrige == true) || (avecCorrige == true) || !lien_corrige.isNullOrBlank() || !lienCorrigeTelechargement.isNullOrBlank()
+
+    val tailleLisible: String?
+        get() = taille_lisible
 }
 
 @JsonClass(generateAdapter = true)
 data class Pagination(
-    val total: Int,
-    val page: Int,
-    val limit: Int,
-    val totalPages: Int,
-    val hasNext: Boolean,
-    val hasPrev: Boolean
+    val total: Int = 0,
+    val page: Int = 1,
+    val limit: Int = 20,
+    val totalPages: Int = 1,
+    val hasNext: Boolean = false,
+    val hasPrev: Boolean = false
 )
 
 @JsonClass(generateAdapter = true)
@@ -126,13 +147,15 @@ data class FiliereResponse(
 @JsonClass(generateAdapter = true)
 data class SearchDocumentsResponse(
     val success: Boolean,
-    val data: SearchDocumentsData?,
-    val message: String?
+    val data: SearchDocumentsData? = null,
+    val pagination: Pagination? = null,
+    val message: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class SearchDocumentsData(
     val nombre_resultats: Int? = 0,
+    val pagination: Pagination? = null,
     val documents: List<ApiDocumentItem>? = emptyList()
 )
 
@@ -140,11 +163,14 @@ data class SearchDocumentsData(
 data class ApiDocumentItem(
     val id: Int,
     val cours_id: Int? = null,
+    val sujet_id: Int? = null,
     val tag_ordre: String? = null, 
     val type_contenu: String? = null,
     val nom: String,
     val type: String? = null,
+    val type_epreuve: String? = null,
     val lien_telechargement: String? = null,
+    val lien_corrige: String? = null,
     val taille_octets: String? = null,
     val taille_lisible: String? = null,
     val niveau: String? = null,
@@ -156,6 +182,7 @@ data class ApiDocumentItem(
     val ecole_nom: String? = null,
     val code_ue: String? = null,
     val intitule_ue: String? = null,
+    val ue_id: Int? = null,
     val annee_academique: String? = null,
     val annee: String? = null,
     val session: String? = null,
@@ -172,6 +199,36 @@ data class ApiDocumentItem(
 }
 
 @JsonClass(generateAdapter = true)
+data class DemandeRequest(
+    val type: String, // "sujet_manquant" ou "signalement"
+    val ue_id: Int? = null,
+    val sujet_id: Int? = null,
+    val message: String,
+    val contact: String? = null
+    // CRITICAL: NEVER include "site_web" field (honeypot trap)
+)
+
+@JsonClass(generateAdapter = true)
+data class DemandeResponse(
+    val success: Boolean = true,
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class AppConfigResponse(
+    val success: Boolean = true,
+    val version_minimale: String? = null,
+    val data: AppConfigData? = null,
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class AppConfigData(
+    val version_minimale: String? = null,
+    val maintenance: Boolean? = false
+)
+
+@JsonClass(generateAdapter = true)
 data class Ecole(
     val id: Int,
     @Json(name = "ecole") val nom: String,
@@ -185,4 +242,5 @@ data class EcoleResponse(
     val data: List<Ecole>?,
     val message: String?
 )
+
 

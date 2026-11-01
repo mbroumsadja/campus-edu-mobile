@@ -3,19 +3,20 @@ package com.example.ui.search.components
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +38,13 @@ fun extractFileExtension(chemin: String?, nomOriginal: String?, defaultType: Str
     else "pdf" // Si le type n'est pas connu, mettre le logo d'un PDF
 }
 
+/**
+ * Nettoie le titre du document en retirant l'extension .pdf à la fin
+ */
+fun cleanDocumentTitle(rawTitle: String): String {
+    return rawTitle.replace(Regex("(?i)\\.pdf$"), "").trim()
+}
+
 fun formatDownloadSpeed(speedKBps: Double, progress: Int): String {
     return when {
         speedKBps >= 1024.0 -> String.format(java.util.Locale.US, "%.1f Mo/s", speedKBps / 1024.0)
@@ -46,8 +54,8 @@ fun formatDownloadSpeed(speedKBps: Double, progress: Int): String {
 }
 
 /**
- * Affiche le logo du format de fichier :
- * Par défaut ou si inconnu, affiche le logo d'un PDF.
+ * Logo de format de fichier (PDF par défaut ou si inconnu)
+ * Conçu de gauche à droite pour un format horizontal compact.
  */
 @Composable
 fun FileLogoBadge(
@@ -57,32 +65,31 @@ fun FileLogoBadge(
     val isPdf = extension.isBlank() || extension.equals("pdf", ignoreCase = true)
 
     val badgeColor = when {
-        isPdf -> Color(0xFFD32F2F)
-        extension.contains("doc") -> Color(0xFF1565C0)
-        extension.contains("ppt") -> Color(0xFFE65100)
-        extension.contains("xls") -> Color(0xFF2E7D32)
-        else -> Color(0xFFD32F2F)
+        isPdf -> Color(0xFFEF4444)
+        extension.contains("doc") -> Color(0xFF3B82F6)
+        extension.contains("ppt") -> Color(0xFFF97316)
+        extension.contains("xls") -> Color(0xFF10B981)
+        else -> Color(0xFFEF4444)
     }
 
     val containerColor = when {
-        isPdf -> Color(0xFFFFEBEE)
-        extension.contains("doc") -> Color(0xFFE3F2FD)
-        extension.contains("ppt") -> Color(0xFFFFF3E0)
-        extension.contains("xls") -> Color(0xFFE8F5E9)
-        else -> Color(0xFFFFEBEE)
+        isPdf -> Color(0xFF450A0A).copy(alpha = 0.5f)
+        extension.contains("doc") -> Color(0xFF172554).copy(alpha = 0.5f)
+        extension.contains("ppt") -> Color(0xFF431407).copy(alpha = 0.5f)
+        extension.contains("xls") -> Color(0xFF064E3B).copy(alpha = 0.5f)
+        else -> Color(0xFF450A0A).copy(alpha = 0.5f)
     }
 
     Surface(
-        modifier = modifier.size(width = 54.dp, height = 64.dp),
-        shape = RoundedCornerShape(topStart = 6.dp, topEnd = 16.dp, bottomStart = 6.dp, bottomEnd = 6.dp),
+        modifier = modifier.size(width = 38.dp, height = 46.dp),
+        shape = RoundedCornerShape(topStart = 6.dp, topEnd = 12.dp, bottomStart = 6.dp, bottomEnd = 6.dp),
         color = containerColor,
-        border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.35f)),
-        shadowElevation = 2.dp
+        border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
+                .padding(vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -90,7 +97,7 @@ fun FileLogoBadge(
                 imageVector = if (isPdf) Icons.Default.PictureAsPdf else Icons.Default.Description,
                 contentDescription = if (isPdf) "Logo PDF" else "Fichier $extension",
                 tint = badgeColor,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(20.dp)
             )
 
             Surface(
@@ -98,11 +105,11 @@ fun FileLogoBadge(
                 color = badgeColor
             ) {
                 Text(
-                    text = if (isPdf) "PDF" else extension.uppercase().take(4),
-                    fontSize = 9.sp,
+                    text = if (isPdf) "PDF" else extension.uppercase().take(3),
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
                 )
             }
         }
@@ -110,10 +117,11 @@ fun FileLogoBadge(
 }
 
 /**
- * Carte de cours épurée :
- *  - Téléchargement au clic
- *  - Pas de barre de progression
- *  - Vitesse affichée à gauche du nom du cours pendant le téléchargement sans déformer le composant
+ * Carte de cours horizontale (plus de largeur que de hauteur) :
+ *  - De gauche à droite : Logo d'extension, puis Nom du document sans .pdf
+ *  - Vitesse affichée à gauche du nom sans déformer le composant
+ *  - Téléchargement direct au clic sans bouton
+ *  - Aucun effet de survol / hover
  */
 @Composable
 fun CoursItemCard(
@@ -133,99 +141,119 @@ fun CoursItemCard(
         nomOriginal = cours.nomFichierOriginal,
         defaultType = cours.type
     )
+    val displayTitle = cleanDocumentTitle(cours.titre)
+    val interactionSource = remember { MutableInteractionSource() }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable {
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) {
                 if (isDownloaded) onOpen()
                 else if (downloadStatus !is DownloadStatus.Progress) onDownload()
             }
-            .semantics { contentDescription = "Cours ${cours.titre}" },
-        shape = RoundedCornerShape(10.dp),
+            .semantics { contentDescription = "Cours $displayTitle" },
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // En-tête : Badge UE & statut
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // 1. Gauche : Logo de l'extension (PDF ou autre)
+            FileLogoBadge(
+                extension = extension
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // 2. Centre : Titre du cours + Badges (taille, année)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
             ) {
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
+                    if (downloadStatus is DownloadStatus.Progress) {
+                        val speedText = formatDownloadSpeed(downloadStatus.speedKBps, downloadStatus.progress)
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.padding(end = 6.dp)
+                        ) {
+                            Text(
+                                text = speedText,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
                     Text(
-                        text = ue.code.trim().uppercase(),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        text = displayTitle,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                if (isDownloaded || cours.deja_telecharge == true) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Téléchargé",
-                        tint = Color(0xFF2E7D32),
-                        modifier = Modifier.size(16.dp)
-                    )
+                // Badges d'information : taille & année
+                Row(
+                    modifier = Modifier.padding(top = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val taille = cours.tailleLisible
+                    if (!taille.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = taille,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                    val annee = cours.anneeAcademique
+                    if (!annee.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = annee,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Logo PDF ou extension
-            FileLogoBadge(
-                extension = extension,
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Ligne avec vitesse de téléchargement à gauche du nom du cours
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 34.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                if (downloadStatus is DownloadStatus.Progress) {
-                    val speedText = formatDownloadSpeed(downloadStatus.speedKBps, downloadStatus.progress)
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(end = 4.dp)
-                    ) {
-                        Text(
-                            text = speedText,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = cours.titre,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
+            // 3. Droite : Statut téléchargé
+            if (isDownloaded || cours.deja_telecharge == true) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Téléchargé",
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -233,8 +261,11 @@ fun CoursItemCard(
 }
 
 /**
- * Carte d'épreuve d'examen :
- * Téléchargement au clic avec vitesse affichée à gauche du nom du cours.
+ * Carte d'épreuve d'examen horizontale :
+ *  - Logo d'extension à gauche
+ *  - Nom du sujet sans .pdf
+ *  - Badges : Année, Session, Corrigé, Taille
+ *  - Bouton "Signaler" et statut de téléchargement
  */
 @Composable
 fun SujetItemCard(
@@ -254,6 +285,7 @@ fun SujetItemCard(
     onStudyCorrigeWithAi: () -> Unit,
     onShareCorrige: () -> Unit,
     onDeleteCorrige: () -> Unit,
+    onReport: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val extension = extractFileExtension(
@@ -261,101 +293,167 @@ fun SujetItemCard(
         nomOriginal = null,
         defaultType = sujet.type
     )
+    val displayTitle = cleanDocumentTitle(sujet.titre)
+    val interactionSource = remember { MutableInteractionSource() }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable {
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) {
                 if (isSujetDownloaded) onOpenSujet()
                 else if (sujetDownloadStatus !is DownloadStatus.Progress) onDownloadSujet()
             }
-            .semantics { contentDescription = "Épreuve ${sujet.titre}" },
-        shape = RoundedCornerShape(10.dp),
+            .semantics { contentDescription = "Épreuve $displayTitle" },
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // En-tête : Badge UE & statut
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // 1. Gauche : Logo de l'extension
+            FileLogoBadge(
+                extension = extension
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // 2. Centre : Titre + Badges (année, session, corrigé, taille)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
             ) {
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
+                    if (sujetDownloadStatus is DownloadStatus.Progress) {
+                        val speedText = formatDownloadSpeed(sujetDownloadStatus.speedKBps, sujetDownloadStatus.progress)
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.padding(end = 6.dp)
+                        ) {
+                            Text(
+                                text = speedText,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
                     Text(
-                        text = ue.code.trim().uppercase(),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        text = displayTitle,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Badges descriptifs : Année, Session, Corrigé, Taille
+                Row(
+                    modifier = Modifier.padding(top = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val annee = sujet.anneeAcademique
+                    if (!annee.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ) {
+                            Text(
+                                text = annee,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
+                    if (!sujet.session.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = sujet.session,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
+                    if (sujet.hasCorrige) {
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = Color(0xFF10B981).copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "Corrigé",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
+                    val taille = sujet.tailleLisible
+                    if (!taille.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(3.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = taille,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 3. Droite : Bouton Signaler & Statut téléchargé
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onReport,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = "Signaler ce sujet",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
 
                 if (isSujetDownloaded) {
+                    Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = "Téléchargé",
-                        tint = Color(0xFF2E7D32),
+                        tint = Color(0xFF10B981),
                         modifier = Modifier.size(16.dp)
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Logo PDF
-            FileLogoBadge(
-                extension = extension,
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Ligne avec vitesse de téléchargement à gauche du nom
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 34.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                if (sujetDownloadStatus is DownloadStatus.Progress) {
-                    val speedText = formatDownloadSpeed(sujetDownloadStatus.speedKBps, sujetDownloadStatus.progress)
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(end = 4.dp)
-                    ) {
-                        Text(
-                            text = speedText,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = sujet.titre,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f)
-                )
-            }
         }
     }
 }
+

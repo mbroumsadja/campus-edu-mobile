@@ -26,6 +26,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.model.Ecole
+import com.example.data.model.Filiere
 import com.example.data.preferences.SavedDocumentMeta
 import com.example.data.preferences.StudentProfile
 import com.example.data.preferences.StudentProfileManager
@@ -81,8 +83,31 @@ fun SearchScreen(
             onSaveProfile = { newProfile ->
                 studentProfile = newProfile
                 profileManager.saveProfile(newProfile)
+                val ecoleMatch = ecoles.find {
+                    it.nom.equals(newProfile.ecoleNom, ignoreCase = true) ||
+                    (newProfile.ecoleId != null && it.id == newProfile.ecoleId)
+                } ?: newProfile.ecoleNom?.let { nom ->
+                    Ecole(id = newProfile.ecoleId ?: 0, nom = nom, sigle = null)
+                }
+                viewModel.selectEcole(ecoleMatch)
+                val filiereMatch = filieres.find {
+                    it.code.equals(newProfile.filiereCode, ignoreCase = true) ||
+                    it.nom.equals(newProfile.filiereNom, ignoreCase = true)
+                } ?: newProfile.filiereCode?.let { code ->
+                    Filiere(
+                        id = newProfile.filiereId ?: 0,
+                        code = code,
+                        nom = newProfile.filiereNom ?: code,
+                        ecole_id = newProfile.ecoleId,
+                        ecole_nom = newProfile.ecoleNom
+                    )
+                }
+                viewModel.selectFiliere(filiereMatch)
+                viewModel.selectNiveau(newProfile.niveau)
                 showOnboarding = false
-            }
+                Toast.makeText(context, "Profil mis à jour", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = if (studentProfile.isConfigured) { { showOnboarding = false } } else null
         )
         return
     }
@@ -93,11 +118,11 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(24.dp),
+                    .padding(horizontal = 28.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 4.dp,
-                shadowElevation = 6.dp,
+                tonalElevation = 2.dp,
+                shadowElevation = 4.dp,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             ) {
                 NavigationBar(
@@ -105,7 +130,7 @@ fun SearchScreen(
                     tonalElevation = 0.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp)
+                        .height(48.dp)
                 ) {
                     // Page 1 : Recherche
                     NavigationBarItem(
@@ -114,46 +139,48 @@ fun SearchScreen(
                         icon = {
                             Icon(
                                 imageVector = Icons.Default.Search,
-                                contentDescription = "Recherche"
+                                contentDescription = "Recherche",
+                                modifier = Modifier.size(19.dp)
                             )
                         },
                         label = {
                             Text(
                                 text = "Recherche",
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
 
-                    // Page 2 : Enregistrés (classement en mosaïque)
+                    // Page 2 : Enregistrés (logo dossier standard, sans étoile)
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
                         icon = {
                             Icon(
-                                imageVector = Icons.Default.FolderSpecial,
-                                contentDescription = "Enregistrés"
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = "Enregistrés",
+                                modifier = Modifier.size(19.dp)
                             )
                         },
                         label = {
                             Text(
                                 text = "Enregistrés",
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -174,7 +201,42 @@ fun SearchScreen(
                         viewModel = viewModel,
                         profile = studentProfile,
                         onEditProfile = { showOnboarding = true },
-                        onStudyCoursWithAi = { cours ->
+                        onDownloadCours = { cours, ue ->
+                            val key = "cours_${cours.id}"
+                            profileManager.saveDocumentMeta(
+                                SavedDocumentMeta(
+                                    fileKey = key,
+                                    title = cours.titre,
+                                    ecoleNom = cours.ecoleNom ?: ue.ecoleNom ?: studentProfile.ecoleNom ?: "Université de Garoua",
+                                    filiereNom = cours.filiereNom ?: ue.filiereNom ?: studentProfile.filiereNom ?: "Filière Générale",
+                                    niveau = ue.niveau ?: studentProfile.niveau,
+                                    ueCode = ue.code.trim().uppercase(),
+                                    ueIntitule = ue.intitule.trim(),
+                                    isSujetOrTd = false
+                                )
+                            )
+                            viewModel.downloadCours(context, cours, ue)
+                            Toast.makeText(context, "Téléchargement lancé...", Toast.LENGTH_SHORT).show()
+                        },
+                        onDownloadSujet = { sujet, isCorrige, ue ->
+                            val key = if (isCorrige) "corrige_${sujet.id}" else "sujet_${sujet.id}"
+                            profileManager.saveDocumentMeta(
+                                SavedDocumentMeta(
+                                    fileKey = key,
+                                    title = "${sujet.titre}${if (isCorrige) " (Corrigé)" else ""}",
+                                    ecoleNom = sujet.ecoleNom ?: ue.ecoleNom ?: studentProfile.ecoleNom ?: "Université de Garoua",
+                                    filiereNom = sujet.filiereNom ?: ue.filiereNom ?: studentProfile.filiereNom ?: "Filière Générale",
+                                    niveau = ue.niveau ?: studentProfile.niveau,
+                                    ueCode = ue.code.trim().uppercase(),
+                                    ueIntitule = ue.intitule.trim(),
+                                    isSujetOrTd = true,
+                                    isCorrige = isCorrige
+                                )
+                            )
+                            viewModel.downloadSujet(context, sujet, isCorrige, ue)
+                            Toast.makeText(context, "Téléchargement lancé...", Toast.LENGTH_SHORT).show()
+                        },
+                        onStudyCoursWithAi = { cours, ue ->
                             val key = "cours_${cours.id}"
                             val local = allLocalFiles.find { it.originalKey == key || it.name.contains("${cours.id}") }
                             if (local != null) {
@@ -184,19 +246,19 @@ fun SearchScreen(
                                     SavedDocumentMeta(
                                         fileKey = key,
                                         title = cours.titre,
-                                        ecoleNom = cours.ecoleNom ?: studentProfile.ecoleNom ?: "Université de Garoua",
-                                        filiereNom = cours.filiereNom ?: studentProfile.filiereNom ?: "Filière Générale",
-                                        niveau = studentProfile.niveau,
-                                        ueCode = "UE",
-                                        ueIntitule = cours.titre,
+                                        ecoleNom = cours.ecoleNom ?: ue.ecoleNom ?: studentProfile.ecoleNom ?: "Université de Garoua",
+                                        filiereNom = cours.filiereNom ?: ue.filiereNom ?: studentProfile.filiereNom ?: "Filière Générale",
+                                        niveau = ue.niveau ?: studentProfile.niveau,
+                                        ueCode = ue.code.trim().uppercase(),
+                                        ueIntitule = ue.intitule.trim(),
                                         isSujetOrTd = false
                                     )
                                 )
-                                viewModel.downloadCours(context, cours)
+                                viewModel.downloadCours(context, cours, ue)
                                 Toast.makeText(context, "Téléchargement lancé...", Toast.LENGTH_SHORT).show()
                             }
                         },
-                        onStudySujetWithAi = { sujet, isCorrige ->
+                        onStudySujetWithAi = { sujet, isCorrige, ue ->
                             val key = if (isCorrige) "corrige_${sujet.id}" else "sujet_${sujet.id}"
                             val local = allLocalFiles.find { it.originalKey == key || it.name.contains("${sujet.id}") }
                             if (local != null) {
@@ -205,17 +267,17 @@ fun SearchScreen(
                                 profileManager.saveDocumentMeta(
                                     SavedDocumentMeta(
                                         fileKey = key,
-                                        title = sujet.titre,
-                                        ecoleNom = sujet.ecoleNom ?: studentProfile.ecoleNom ?: "Université de Garoua",
-                                        filiereNom = sujet.filiereNom ?: studentProfile.filiereNom ?: "Filière Générale",
-                                        niveau = studentProfile.niveau,
-                                        ueCode = "UE",
-                                        ueIntitule = sujet.titre,
+                                        title = "${sujet.titre}${if (isCorrige) " (Corrigé)" else ""}",
+                                        ecoleNom = sujet.ecoleNom ?: ue.ecoleNom ?: studentProfile.ecoleNom ?: "Université de Garoua",
+                                        filiereNom = sujet.filiereNom ?: ue.filiereNom ?: studentProfile.filiereNom ?: "Filière Générale",
+                                        niveau = ue.niveau ?: studentProfile.niveau,
+                                        ueCode = ue.code.trim().uppercase(),
+                                        ueIntitule = ue.intitule.trim(),
                                         isSujetOrTd = true,
                                         isCorrige = isCorrige
                                     )
                                 )
-                                viewModel.downloadSujet(context, sujet, isCorrige)
+                                viewModel.downloadSujet(context, sujet, isCorrige, ue)
                                 Toast.makeText(context, "Téléchargement lancé...", Toast.LENGTH_SHORT).show()
                             }
                         }
@@ -226,6 +288,7 @@ fun SearchScreen(
                     EnregistresScreen(
                         viewModel = viewModel,
                         profile = studentProfile,
+                        onEditProfile = { showOnboarding = true },
                         onStudyWithAi = { localDoc ->
                             selectedDocForAiOptions = localDoc
                         },

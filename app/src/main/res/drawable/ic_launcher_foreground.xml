@@ -17,7 +17,7 @@
 
     <!-- Right Side Tassel -->
     <path
-        android:fillColor="#E2E8F0"
+        android:fillColor="#FFFFFF"
         android:pathData="M77,47 L77,65 M75,65 L79,65 L79,71 L75,71 Z" />
 
 </vector>

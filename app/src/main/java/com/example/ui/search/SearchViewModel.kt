@@ -90,6 +90,7 @@ sealed class CatalogueUiState {
     data class Error(val message: String) : CatalogueUiState()
 }
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 class SearchViewModel(application: Application) : AndroidViewModel(application) {
 
     private val service = NetworkModule.createService(application)
@@ -132,6 +133,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
     val uiState = _uiState.asStateFlow()
 
+    private val _isOfflineSearch = MutableStateFlow(false)
+    val isOfflineSearch = _isOfflineSearch.asStateFlow()
+
     // Network Loading indicator
     private val _isNetworkLoading = MutableStateFlow(false)
     val isNetworkLoading = _isNetworkLoading.asStateFlow()
@@ -145,6 +149,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _currentPage = MutableStateFlow(1)
     val currentPage = _currentPage.asStateFlow()
+
 
     // Access Token management
     private val _accessToken = MutableStateFlow("")
@@ -223,6 +228,9 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         loadFilieres()
         loadCatalogue()
 
+        // Check minimum app version from API v1
+        checkAppVersion()
+
         // Debounce input and combine with filters to trigger real-time searches
         viewModelScope.launch {
             combine(
@@ -238,6 +246,37 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             }.collect()
         }
     }
+
+    private fun checkAppVersion() {
+        viewModelScope.launch {
+            try {
+                val response = searchRepository.getConfig()
+                if (response.isSuccessful) {
+                    val minVer = response.body()?.version_minimale ?: response.body()?.data?.version_minimale
+                    if (!minVer.isNullOrBlank()) {
+                        com.example.data.network.VersionUpdateManager.minimumVersion.value = minVer
+                        if (isVersionLower(com.example.BuildConfig.VERSION_NAME, minVer)) {
+                            com.example.data.network.VersionUpdateManager.isUpdateRequired.value = true
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun isVersionLower(current: String, min: String): Boolean {
+        val curParts = current.split(".").mapNotNull { it.toIntOrNull() }
+        val minParts = min.split(".").mapNotNull { it.toIntOrNull() }
+        val maxLen = maxOf(curParts.size, minParts.size)
+        for (i in 0 until maxLen) {
+            val c = curParts.getOrElse(i) { 0 }
+            val m = minParts.getOrElse(i) { 0 }
+            if (c < m) return true
+            if (c > m) return false
+        }
+        return false
+    }
+
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
@@ -721,12 +760,13 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.value = SearchUiState.Loading
             }
 
-            try {
-                val formattedNiveau = if (niveau.isBlank() || niveau.equals("Tous", ignoreCase = true)) null else niveau
-                val formattedType = if (type.isBlank() || type.equals("Tous", ignoreCase = true)) null else type
-                val formattedAnnee = if (annee.isBlank() || annee.equals("Toutes", ignoreCase = true) || annee.equals("Tous", ignoreCase = true)) null else annee
+            val formattedNiveau = if (niveau.isBlank() || niveau.equals("Tous", ignoreCase = true)) null else niveau
+            val formattedType = if (type.isBlank() || type.equals("Tous", ignoreCase = true)) null else type
+            val formattedAnnee = if (annee.isBlank() || annee.equals("Toutes", ignoreCase = true) || annee.equals("Tous", ignoreCase = true)) null else annee
 
-                // Endpoint GET /api/search/documents
+            try {
+
+                // Endpoint GET /api/v1/search/documents
                 val apiResponse = searchRepository.searchDocuments(
                     nom = if (query.isNotBlank()) query.trim() else null,
                     q = if (query.isNotBlank()) query.trim() else null,
@@ -736,13 +776,16 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     ecole = ecoleName,
                     ecoleId = ecoleId,
                     annee = formattedAnnee,
-                    type = formattedType
+                    type = formattedType,
+                    page = page,
+                    limit = 20
                 )
 
                 if (apiResponse.isSuccessful && apiResponse.body()?.success == true) {
+                    _isOfflineSearch.value = false
                     val searchData = apiResponse.body()?.data
                     val rawDocs = searchData?.documents ?: emptyList()
-                    _pagination.value = null // /api/search/documents returns all items in one call
+                    _pagination.value = apiResponse.body()?.pagination ?: searchData?.pagination
 
                     updateEcolesAndFilieresFromDocuments(rawDocs)
 
@@ -758,16 +801,24 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                     val actualDocCount = filteredResults.sumOf { (it.cours?.size ?: 0) + (it.sujets?.size ?: 0) }
                     _resultCount.value = actualDocCount
 
-                    if (filteredResults.isEmpty()) {
+                    if (filteredResults.isEmpty() && !append) {
                         _uiState.value = SearchUiState.Empty(query)
                     } else {
-                        _uiState.value = SearchUiState.Success(filteredResults)
+                        if (append && _uiState.value is SearchUiState.Success) {
+                            val currentList = (_uiState.value as SearchUiState.Success).results
+                            _uiState.value = SearchUiState.Success(mergeUeResults(currentList, filteredResults))
+                        } else {
+                            _uiState.value = SearchUiState.Success(filteredResults)
+                        }
                         updateDownloadedFilesSet(filteredResults)
                     }
                 } else {
                     val code = apiResponse.code()
                     val errMsg = apiResponse.body()?.message ?: "Aucun document trouvé"
-                    if (code in 500..599) {
+                    if (code == 426) {
+                        com.example.data.network.VersionUpdateManager.isUpdateRequired.value = true
+                        _uiState.value = SearchUiState.Error("Mise à jour obligatoire de l'application.")
+                    } else if (code in 500..599) {
                         _uiState.value = SearchUiState.ServerError(code, "Serveur momentanément indisponible")
                     } else {
                         _uiState.value = SearchUiState.Error(errMsg.take(40))
@@ -784,7 +835,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                         causeMsg.contains("timeout", ignoreCase = true)
 
                 if (isNetworkErr) {
-                    _uiState.value = SearchUiState.NetworkError("Mode hors-ligne actif")
+                    // Recherche locale hors-ligne dans les cours téléchargés
+                    performOfflineSearch(query = query, filiereCode = filiereCode, niveau = formattedNiveau)
                 } else {
                     _uiState.value = SearchUiState.Error("Chargement impossible, réessayez")
                 }
@@ -810,15 +862,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             val coursList = mutableListOf<Cours>()
             val sujetsList = mutableListOf<Sujet>()
 
-            // Sort documents by tag_ordre (if available) then by id
-            val sortedDocs = docList.sortedWith(
-                compareBy<ApiDocumentItem> { it.tag_ordre ?: "999" }
-                    .thenBy { it.id }
-            )
-
-            sortedDocs.forEach { doc ->
+            docList.forEach { doc ->
                 val isSujet = doc.type_contenu?.contains("sujet", ignoreCase = true) == true ||
-                        listOf("partiel", "rattrapage", "terminal", "tp", "td").contains(doc.type?.lowercase())
+                        listOf("partiel", "rattrapage", "terminal", "tp", "td").contains(doc.type?.lowercase()) ||
+                        doc.type_epreuve != null
 
                 val docAnnee = doc.annee_academique ?: doc.annee?.toString()
                 if (isSujet) {
@@ -827,13 +874,20 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             id = doc.id,
                             titre = doc.nom,
                             type = doc.type ?: "partiel",
-                            session = "Normale",
+                            type_epreuve = doc.type_epreuve,
+                            session = doc.session ?: "Normale",
                             annee = docAnnee,
+                            annee_academique = docAnnee,
                             cheminFichier = doc.lien_telechargement,
                             lienTelechargement = doc.lien_telechargement,
-                            avecCorrige = false,
-                            cheminCorrige = null,
-                            lienCorrigeTelechargement = null,
+                            lien_telechargement = doc.lien_telechargement,
+                            avecCorrige = doc.avec_corrige ?: !doc.lien_corrige.isNullOrBlank(),
+                            avec_corrige = doc.avec_corrige ?: !doc.lien_corrige.isNullOrBlank(),
+                            cheminCorrige = doc.lien_corrige,
+                            lienCorrigeTelechargement = doc.lien_corrige,
+                            lien_corrige = doc.lien_corrige,
+                            taille_lisible = doc.taille_lisible,
+                            taille_octets = doc.tailleOctetsLong,
                             statut = "publie",
                             telechargemements = doc.telechargements ?: 0,
                             ue_id = idCounter,
@@ -862,8 +916,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                             lienTelechargement = doc.lien_telechargement,
                             nomFichierOriginal = doc.nom,
                             tailleFichier = doc.tailleOctetsLong ?: doc.taille_octets?.toLongOrNull(),
+                            taille_lisible = doc.taille_lisible,
                             statut = "publie",
                             anneAcademique = docAnnee,
+                            annee_academique = docAnnee,
                             vues = 0,
                             telechargemements = doc.telechargements ?: 0,
                             ue_id = idCounter,
@@ -878,18 +934,34 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
+            // Les sujets arrivent avant les cours, triés par année académique décroissante
+            val sortedSujets = sujetsList.sortedWith(
+                compareByDescending<Sujet> { it.anneeAcademique ?: "" }
+                    .thenByDescending { it.id }
+            )
+            val sortedCours = coursList.sortedWith(
+                compareByDescending<Cours> { it.anneeAcademique ?: "" }
+                    .thenBy { it.id }
+            )
+
             UeWithDocuments(
                 id = idCounter++,
                 code = ueCode,
                 intitule = ueIntitule,
                 niveau = sampleDoc?.niveau ?: "L1",
-                cours = coursList,
-                sujets = sujetsList,
+                cours = sortedCours,
+                sujets = sortedSujets,
                 filiereCode = sampleDoc?.filiere_code,
                 filiereNom = sampleDoc?.filiere_nom,
                 ecoleNom = sampleDoc?.ecole_nom
             )
         }
+    }
+
+    private fun removeAccents(str: String): String {
+        return java.text.Normalizer.normalize(str, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+            .lowercase()
     }
 
     fun retrySearch() {
@@ -929,8 +1001,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         type: String,
         query: String
     ): List<UeWithDocuments> {
+        val normQuery = removeAccents(query.trim())
+
         return results.mapNotNull { ue ->
-            // 1. Filter by level (niveau) if specified and not "Tous"
+            // 1. Filtrage niveau
             if (niveau.isNotBlank() && !niveau.equals("Tous", ignoreCase = true)) {
                 val ueNiveau = ue.niveau ?: ""
                 if (!ueNiveau.equals(niveau, ignoreCase = true)) {
@@ -938,11 +1012,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
-            // 2. Filter cours and sujets by other criteria
+            // 2. Filtrage type
             var filteredCours = ue.cours ?: emptyList()
             var filteredSujets = ue.sujets ?: emptyList()
 
-            // Filter by type if specific type selected
             if (type.isNotBlank() && !type.equals("Tous", ignoreCase = true)) {
                 val t = type.lowercase()
                 if (t == "cours") {
@@ -955,22 +1028,22 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
 
-            // Filter by query if query is not blank
-            if (query.isNotBlank()) {
-                val q = query.trim()
-                val ueMatches = ue.code.contains(q, ignoreCase = true) || ue.intitule.contains(q, ignoreCase = true)
-                
+            // 3. Filtrage insensible aux accents et à la casse
+            if (normQuery.isNotBlank()) {
+                val ueCodeNorm = removeAccents(ue.code)
+                val ueIntituleNorm = removeAccents(ue.intitule)
+                val ueMatches = ueCodeNorm.contains(normQuery) || ueIntituleNorm.contains(normQuery)
+
                 if (!ueMatches) {
                     filteredCours = filteredCours.filter { c ->
-                        c.titre.contains(q, ignoreCase = true) || (c.description ?: "").contains(q, ignoreCase = true)
+                        removeAccents(c.titre).contains(normQuery) || removeAccents(c.description ?: "").contains(normQuery)
                     }
                     filteredSujets = filteredSujets.filter { s ->
-                        s.titre.contains(q, ignoreCase = true)
+                        removeAccents(s.titre).contains(normQuery)
                     }
                 }
             }
 
-            // If we have neither cours nor sujets left, filter out the UE entirely
             if (filteredCours.isEmpty() && filteredSujets.isEmpty()) {
                 null
             } else {
@@ -978,6 +1051,115 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    /**
+     * Recherche locale dans les documents téléchargés lorsque la connexion est indisponible
+     */
+    private fun performOfflineSearch(query: String, filiereCode: String? = null, niveau: String? = null) {
+        _isOfflineSearch.value = true
+        val localDocs = _allLocalFiles.value
+        val normQuery = removeAccents(query.trim())
+
+        val filtered = localDocs.filter { doc ->
+            val normTitle = removeAccents(doc.formattedTitle)
+            val normName = removeAccents(doc.name)
+            val normCategory = removeAccents(doc.typeCategory)
+            (normQuery.isBlank() || normTitle.contains(normQuery) || normName.contains(normQuery) || normCategory.contains(normQuery))
+        }
+
+        if (filtered.isEmpty()) {
+            _uiState.value = SearchUiState.Empty(query)
+            _resultCount.value = 0
+        } else {
+            val grouped = filtered.groupBy { doc ->
+                extractUeCode(doc.name)
+            }
+            var idCounter = 1000
+            val converted = grouped.map { (ueCode, docs) ->
+                val coursList = docs.filter { it.typeCategory == "Cours" }.map { d ->
+                    Cours(
+                        id = idCounter++,
+                        titre = d.formattedTitle,
+                        cheminFichier = d.file.absolutePath,
+                        lienTelechargement = null,
+                        type = "pdf",
+                        annee_academique = null,
+                        taille_lisible = d.sizeFormatted,
+                        ue_id = idCounter,
+                        deja_telecharge = true
+                    )
+                }
+                val sujetsList = docs.filter { it.typeCategory != "Cours" }.map { d ->
+                    Sujet(
+                        id = idCounter++,
+                        titre = d.formattedTitle,
+                        cheminFichier = d.file.absolutePath,
+                        lienTelechargement = null,
+                        type = "partiel",
+                        session = "Normale",
+                        annee = null,
+                        taille_lisible = d.sizeFormatted,
+                        avecCorrige = d.typeCategory == "Corrigés",
+                        ue_id = idCounter,
+                        deja_telecharge = true
+                    )
+                }
+                UeWithDocuments(
+                    id = idCounter++,
+                    code = ueCode,
+                    intitule = if (ueCode != "UE") "Unité $ueCode" else "Documents téléchargés",
+                    niveau = docs.firstOrNull()?.niveau ?: "L1",
+                    cours = coursList,
+                    sujets = sujetsList
+                )
+            }
+            _resultCount.value = filtered.size
+            _uiState.value = SearchUiState.Success(converted)
+        }
+    }
+
+    private fun extractUeCode(name: String): String {
+        val clean = name.removePrefix("cours_").removePrefix("sujet_").removePrefix("corrige_")
+        val parts = clean.split("_")
+        for (part in parts) {
+            if (part.matches(Regex("[A-Za-z]{2,5}[0-9]{2,4}[A-Za-z]?"))) {
+                return part.uppercase()
+            }
+        }
+        return "UE"
+    }
+
+    fun submitDemande(
+        type: String, // "sujet_manquant" ou "signalement"
+        ueId: Int? = null,
+        sujetId: Int? = null,
+        message: String,
+        contact: String? = null,
+        onResult: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val req = com.example.data.model.DemandeRequest(
+                    type = type,
+                    ue_id = ueId,
+                    sujet_id = sujetId,
+                    message = message,
+                    contact = contact?.takeIf { it.isNotBlank() }
+                )
+                val res = searchRepository.submitDemande(req)
+                if (res.isSuccessful || res.code() == 409 || (res.body()?.message?.contains("déjà", ignoreCase = true) == true)) {
+                    onResult(true, res.body()?.message ?: "Votre demande a bien été enregistrée.")
+                } else if (res.code() == 429) {
+                    onResult(false, "Limite d'envois atteinte (5/heure), réessayez plus tard.")
+                } else {
+                    onResult(false, res.body()?.message ?: "Erreur (${res.code()}) lors de l'envoi.")
+                }
+            } catch (e: Exception) {
+                onResult(false, e.localizedMessage ?: "Erreur de connexion.")
+            }
+        }
+    }
+
 
     fun updateDownloadedFilesSet(results: List<UeWithDocuments>? = null) {
         val context = getApplication<Application>().applicationContext
@@ -1067,10 +1249,16 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // Downloads handling
-    fun downloadCours(context: Context, cours: Cours) {
+    fun downloadCours(context: Context, cours: Cours, ue: UeWithDocuments? = null) {
         val key = "cours_${cours.id}"
         viewModelScope.launch {
-            downloadRepository.downloadCours(context, cours.id, cours.titre, cours.downloadUrl).collect { status ->
+            downloadRepository.downloadCours(
+                context = context,
+                id = cours.id,
+                defaultTitle = cours.titre,
+                cheminFichier = cours.downloadUrl,
+                ueIntitule = ue?.intitule
+            ).collect { status ->
                 _activeDownloads.value = _activeDownloads.value + (key to status)
                 if (status is DownloadStatus.Success) {
                     playDownloadSuccessSound(context)
@@ -1093,11 +1281,20 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun downloadSujet(context: Context, sujet: Sujet, isCorrige: Boolean) {
+    fun downloadSujet(context: Context, sujet: Sujet, isCorrige: Boolean, ue: UeWithDocuments? = null) {
         val key = if (isCorrige) "sujet_${sujet.id}_corrige" else "sujet_${sujet.id}_sujet"
         val downloadUrl = sujet.getDownloadUrlForCorrige(isCorrige)
         viewModelScope.launch {
-            downloadRepository.downloadSujet(context, sujet.id, isCorrige, sujet.titre, downloadUrl).collect { status ->
+            downloadRepository.downloadSujet(
+                context = context,
+                id = sujet.id,
+                isCorrige = isCorrige,
+                defaultTitle = sujet.titre,
+                cheminFichier = downloadUrl,
+                ueIntitule = ue?.intitule,
+                anneeAcademique = sujet.anneeAcademique,
+                session = sujet.session
+            ).collect { status ->
                 _activeDownloads.value = _activeDownloads.value + (key to status)
                 if (status is DownloadStatus.Success) {
                     playDownloadSuccessSound(context)
@@ -1120,6 +1317,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
 
     fun openDownloadedCours(context: Context, cours: Cours) {
         val file = downloadRepository.getLocalFileForCours(context, cours.id)

@@ -112,30 +112,42 @@ class DownloadRepository(private val service: CampusEduService) {
         return file.exists() && file.delete()
     }
 
-    fun downloadCours(context: Context, id: Int, defaultTitle: String, cheminFichier: String? = null): Flow<DownloadStatus> = flow {
+    fun downloadCours(
+        context: Context,
+        id: Int,
+        defaultTitle: String,
+        cheminFichier: String? = null,
+        ueIntitule: String? = null,
+        documentId: Int? = null
+    ): Flow<DownloadStatus> = flow {
         emit(DownloadStatus.Progress(0))
         try {
-            var response = if (!cheminFichier.isNullOrBlank()) {
-                val cleanedUrl = cheminFichier.trim()
-                service.downloadFromUrl(cleanedUrl)
+            var response = if (!cheminFichier.isNullOrBlank() && (cheminFichier.startsWith("http://") || cheminFichier.startsWith("https://"))) {
+                service.downloadFromUrl(cheminFichier.trim())
             } else {
-                service.downloadDocumentApi(type = "cours", id = id)
+                service.downloadDocumentApi(type = "cours", id = id, documentId = documentId)
             }
 
-            if (!response.isSuccessful) {
-                // Fallback to direct document API if URL failed
-                response = service.downloadDocumentApi(type = "cours", id = id)
-                if (!response.isSuccessful) {
-                    response = service.downloadCours(id)
-                }
+            if (!response.isSuccessful && !cheminFichier.isNullOrBlank()) {
+                // Si le lien direct échoue, repli sur la route officielle API v1
+                response = service.downloadDocumentApi(type = "cours", id = id, documentId = documentId)
             }
 
+            if (response.code() == 429) {
+                emit(DownloadStatus.Error("Limite atteinte, réessayez plus tard (30 téléchargements/h)"))
+                return@flow
+            }
+            if (response.code() == 426) {
+                com.example.data.network.VersionUpdateManager.isUpdateRequired.value = true
+                emit(DownloadStatus.Error("Mise à jour obligatoire de l'application."))
+                return@flow
+            }
             if (response.code() == 401 || response.code() == 403) {
-                emit(DownloadStatus.Error("Authentification requise : Token absent ou invalide pour télécharger ce document."))
+                emit(DownloadStatus.Error("Accès restreint pour ce document."))
                 return@flow
             }
             if (!response.isSuccessful) {
-                emit(DownloadStatus.Error("Erreur de téléchargement : Code ${response.code()}"))
+                emit(DownloadStatus.Error("Erreur de téléchargement (${response.code()})"))
                 return@flow
             }
             val body = response.body()
@@ -144,8 +156,11 @@ class DownloadRepository(private val service: CampusEduService) {
                 return@flow
             }
 
-            val filename = getFilenameFromResponse(response, "cours_${id}_${sanitizeFilename(defaultTitle)}.pdf")
-            val localName = "cours_${id}_$filename"
+            val uePart = sanitizeFilename(ueIntitule ?: "UE")
+            val titlePart = sanitizeFilename(defaultTitle.ifBlank { "Cours" })
+            val formattedName = "${uePart}_$titlePart.pdf"
+            val localName = "cours_${id}_$formattedName"
+
             val destDir = context.getExternalFilesDir("documents") ?: context.filesDir
             destDir.mkdirs()
             val destFile = File(destDir, localName)
@@ -159,37 +174,54 @@ class DownloadRepository(private val service: CampusEduService) {
         }
     }.flowOn(Dispatchers.IO)
 
-    fun downloadSujet(context: Context, id: Int, isCorrige: Boolean, defaultTitle: String, cheminFichier: String? = null): Flow<DownloadStatus> = flow {
+    fun downloadSujet(
+        context: Context,
+        id: Int,
+        isCorrige: Boolean,
+        defaultTitle: String,
+        cheminFichier: String? = null,
+        ueIntitule: String? = null,
+        anneeAcademique: String? = null,
+        session: String? = null,
+        documentId: Int? = null
+    ): Flow<DownloadStatus> = flow {
         emit(DownloadStatus.Progress(0))
         try {
-            var response = if (!cheminFichier.isNullOrBlank()) {
-                val cleanedUrl = cheminFichier.trim()
-                service.downloadFromUrl(cleanedUrl)
+            var response = if (!cheminFichier.isNullOrBlank() && (cheminFichier.startsWith("http://") || cheminFichier.startsWith("https://"))) {
+                service.downloadFromUrl(cheminFichier.trim())
             } else {
                 service.downloadDocumentApi(
                     type = "sujet",
                     id = id,
+                    documentId = documentId,
                     corrige = if (isCorrige) true else null
                 )
             }
 
-            if (!response.isSuccessful) {
+            if (!response.isSuccessful && !cheminFichier.isNullOrBlank()) {
                 response = service.downloadDocumentApi(
                     type = "sujet",
                     id = id,
+                    documentId = documentId,
                     corrige = if (isCorrige) true else null
                 )
-                if (!response.isSuccessful) {
-                    response = service.downloadSujet(id, isCorrige)
-                }
             }
 
+            if (response.code() == 429) {
+                emit(DownloadStatus.Error("Limite atteinte, réessayez plus tard (30 téléchargements/h)"))
+                return@flow
+            }
+            if (response.code() == 426) {
+                com.example.data.network.VersionUpdateManager.isUpdateRequired.value = true
+                emit(DownloadStatus.Error("Mise à jour obligatoire de l'application."))
+                return@flow
+            }
             if (response.code() == 401 || response.code() == 403) {
-                emit(DownloadStatus.Error("Authentification requise : Token absent ou invalide pour télécharger ce document."))
+                emit(DownloadStatus.Error("Accès restreint pour cette épreuve."))
                 return@flow
             }
             if (!response.isSuccessful) {
-                emit(DownloadStatus.Error("Erreur : ${response.message()} (Code ${response.code()})"))
+                emit(DownloadStatus.Error("Erreur : ${response.message()} (${response.code()})"))
                 return@flow
             }
             val body = response.body()
@@ -199,9 +231,12 @@ class DownloadRepository(private val service: CampusEduService) {
             }
 
             val filePrefix = if (isCorrige) "corrige" else "sujet"
-            val fallbackExt = "pdf"
-            val filename = getFilenameFromResponse(response, "${filePrefix}_${id}_${sanitizeFilename(defaultTitle)}.$fallbackExt")
-            val localName = "${filePrefix}_${id}_$filename"
+            val uePart = sanitizeFilename(ueIntitule ?: "UE")
+            val anneePart = sanitizeFilename(anneeAcademique ?: "Annee")
+            val sessionPart = sanitizeFilename(session ?: "Normale")
+            val formattedName = "${uePart}_${anneePart}_$sessionPart${if (isCorrige) "_corrige" else ""}.pdf"
+            val localName = "${filePrefix}_${id}_$formattedName"
+
             val destDir = context.getExternalFilesDir("documents") ?: context.filesDir
             destDir.mkdirs()
             val destFile = File(destDir, localName)
@@ -214,6 +249,7 @@ class DownloadRepository(private val service: CampusEduService) {
             emit(DownloadStatus.Error(e.localizedMessage ?: "Erreur réseau indéterminée"))
         }
     }.flowOn(Dispatchers.IO)
+
 
     private fun getFilenameFromResponse(response: retrofit2.Response<*>, fallback: String): String {
         val contentDisposition = response.headers()["Content-Disposition"]

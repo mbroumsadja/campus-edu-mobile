@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -37,24 +38,25 @@ import com.example.ui.search.SearchViewModel
 import com.example.ui.search.components.FileLogoBadge
 
 /**
- * Modèle de données pour chaque niveau d'arborescence :
- * 1. Filière
- * 2. Niveau (L1, L2, etc.)
- * 3. Deux dossiers : "UEs" et "Sujets, TD & TP"
- * 4. Code UE -> Cours en liste
+ * Modèle de données pour les documents enregistrés
  */
 data class SavedDocRecord(
     val localDoc: LocalDownloadedDocument,
     val meta: SavedDocumentMeta
 )
 
+/**
+ * Niveaux d'arborescence :
+ * 1. FILIERES_ROOT : Dossiers des filières (ex: INF, RIM, etc.)
+ * 2. CHOIX_COURS_OU_SUJETS : Deux dossiers ("Cours" et "Sujets")
+ * 3. FICHIERS_COURS : Liste des cours de la filière
+ * 4. FICHIERS_SUJETS : Liste des sujets de la filière
+ */
 enum class FolderViewDepth {
-    FILIERES_ROOT,       // 1. Liste des filières (en mosaïque)
-    NIVEAUX_DE_FILIERE,  // 2. Dossiers niveaux de la filière (en mosaïque)
-    CHOIX_UE_OU_SUJET,   // 3. Deux dossiers : "UEs" et "Sujets, TD & TP" (en mosaïque)
-    LISTE_CODES_UE,      // 4a. Liste des codes UE dans le dossier UEs (en mosaïque)
-    FICHIERS_COURS_UE,   // 5a. Cours de l'UE affichés en liste
-    FICHIERS_TD_SUJETS   // 4b. Sujets, TD & TP affichés en liste
+    FILIERES_ROOT,
+    CHOIX_COURS_OU_SUJETS,
+    FICHIERS_COURS,
+    FICHIERS_SUJETS
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +64,7 @@ enum class FolderViewDepth {
 fun EnregistresScreen(
     viewModel: SearchViewModel,
     profile: StudentProfile,
+    onEditProfile: () -> Unit,
     onStudyWithAi: (LocalDownloadedDocument) -> Unit,
     onNavigateToSearch: () -> Unit,
     modifier: Modifier = Modifier
@@ -72,21 +75,18 @@ fun EnregistresScreen(
 
     var currentDepth by remember { mutableStateOf(FolderViewDepth.FILIERES_ROOT) }
     var selectedFiliereName by remember { mutableStateOf("") }
-    var selectedNiveauName by remember { mutableStateOf("") }
-    var selectedUeCode by remember { mutableStateOf("") }
 
     // Navigation arrière
     BackHandler(enabled = currentDepth != FolderViewDepth.FILIERES_ROOT) {
         when (currentDepth) {
-            FolderViewDepth.FICHIERS_COURS_UE -> currentDepth = FolderViewDepth.LISTE_CODES_UE
-            FolderViewDepth.LISTE_CODES_UE, FolderViewDepth.FICHIERS_TD_SUJETS -> currentDepth = FolderViewDepth.CHOIX_UE_OU_SUJET
-            FolderViewDepth.CHOIX_UE_OU_SUJET -> currentDepth = FolderViewDepth.NIVEAUX_DE_FILIERE
-            FolderViewDepth.NIVEAUX_DE_FILIERE -> currentDepth = FolderViewDepth.FILIERES_ROOT
+            FolderViewDepth.FICHIERS_COURS,
+            FolderViewDepth.FICHIERS_SUJETS -> currentDepth = FolderViewDepth.CHOIX_COURS_OU_SUJETS
+            FolderViewDepth.CHOIX_COURS_OU_SUJETS -> currentDepth = FolderViewDepth.FILIERES_ROOT
             FolderViewDepth.FILIERES_ROOT -> {}
         }
     }
 
-    // Regrouper tous les documents enregistrés
+    // Regrouper tous les documents enregistrés (cours et sujets)
     val allRecords = remember(allLocalFiles, profile) {
         allLocalFiles.map { localDoc ->
             val meta = profileManager.getDocumentMeta(localDoc.originalKey)
@@ -100,158 +100,129 @@ fun EnregistresScreen(
                     ueCode = extractUeCode(localDoc.name),
                     ueIntitule = localDoc.formattedTitle.take(30),
                     isSujetOrTd = localDoc.typeCategory != "Cours",
-                    isCorrige = localDoc.name.startsWith("corrige_")
+                    isCorrige = localDoc.typeCategory == "Corrigés"
                 )
             SavedDocRecord(localDoc, meta)
         }
     }
 
-    // Extraction des filières distinctes
-    val distinctFilieres = remember(allRecords) {
-        allRecords.map { it.meta.filiereNom }.distinct().sorted()
+    // Extraction des filières distinctes (avec au moins la filière de profil de l'étudiant si configurée)
+    val distinctFilieres = remember(allRecords, profile) {
+        val list = allRecords.map { it.meta.filiereNom }.distinct().toMutableList()
+        val studentFiliere = profile.filiereNom ?: profile.filiereCode
+        if (!studentFiliere.isNullOrBlank() && !list.contains(studentFiliere)) {
+            list.add(studentFiliere)
+        }
+        list.sorted()
     }
 
-    // Extraction des niveaux pour la filière sélectionnée
-    val niveauxForSelectedFiliere = remember(allRecords, selectedFiliereName) {
-        allRecords.filter { it.meta.filiereNom == selectedFiliereName }
-            .map { it.meta.niveau }
-            .distinct()
-            .sorted()
+    // Documents de la filière sélectionnée
+    val filiereRecords = remember(allRecords, selectedFiliereName) {
+        allRecords.filter {
+            it.meta.filiereNom.equals(selectedFiliereName, ignoreCase = true) ||
+            extractFiliereCode(it.meta.filiereNom).equals(selectedFiliereName, ignoreCase = true)
+        }
     }
 
-    // Documents de la filière et du niveau sélectionnés
-    val currentNiveauRecords = remember(allRecords, selectedFiliereName, selectedNiveauName) {
-        allRecords.filter { it.meta.filiereNom == selectedFiliereName && it.meta.niveau == selectedNiveauName }
+    val coursRecords = remember(filiereRecords) {
+        filiereRecords.filter { !it.meta.isSujetOrTd && it.localDoc.typeCategory == "Cours" }
     }
 
-    val coursRecords = remember(currentNiveauRecords) {
-        currentNiveauRecords.filter { !it.meta.isSujetOrTd }
+    val sujetsRecords = remember(filiereRecords) {
+        filiereRecords.filter { it.meta.isSujetOrTd || it.localDoc.typeCategory != "Cours" }
     }
 
-    val tdSujetsRecords = remember(currentNiveauRecords) {
-        currentNiveauRecords.filter { it.meta.isSujetOrTd }
-    }
-
-    // Codes UE distincts dans le dossier UEs
-    val ueCodesList = remember(coursRecords) {
-        coursRecords.groupBy { it.meta.ueCode }.map { (code, docs) ->
-            code to docs
-        }.sortedBy { it.first }
-    }
-
-    // Cours spécifiques à l'UE choisie
-    val coursForSelectedUe = remember(coursRecords, selectedUeCode) {
-        coursRecords.filter { it.meta.ueCode == selectedUeCode }
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "CAMPUS EDUCATIF",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
-                    )
-                },
-                navigationIcon = {
-                    if (currentDepth != FolderViewDepth.FILIERES_ROOT) {
-                        IconButton(onClick = {
-                            when (currentDepth) {
-                                FolderViewDepth.FICHIERS_COURS_UE -> currentDepth = FolderViewDepth.LISTE_CODES_UE
-                                FolderViewDepth.LISTE_CODES_UE, FolderViewDepth.FICHIERS_TD_SUJETS -> currentDepth = FolderViewDepth.CHOIX_UE_OU_SUJET
-                                FolderViewDepth.CHOIX_UE_OU_SUJET -> currentDepth = FolderViewDepth.NIVEAUX_DE_FILIERE
-                                FolderViewDepth.NIVEAUX_DE_FILIERE -> currentDepth = FolderViewDepth.FILIERES_ROOT
-                                FolderViewDepth.FILIERES_ROOT -> {}
-                            }
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                },
-                actions = {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color.Transparent,
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .size(36.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                            contentDescription = "Logo",
-                            modifier = Modifier.fillMaxSize().clip(CircleShape)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-            )
-        },
-        modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
-        Column(
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(top = 5.dp, start = 14.dp, end = 14.dp)
+    ) {
+        // En-tête compact positionné exactement à 5px du top 0
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .fillMaxWidth()
+                .height(38.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Fil d'Ariane sans "Ce PC"
-            BreadcrumbMosaicBar(
-                depth = currentDepth,
-                filiere = selectedFiliereName,
-                niveau = selectedNiveauName,
-                ueCode = selectedUeCode,
-                onNavigate = { targetDepth ->
-                    currentDepth = targetDepth
+            if (currentDepth != FolderViewDepth.FILIERES_ROOT) {
+                IconButton(
+                    onClick = {
+                        when (currentDepth) {
+                            FolderViewDepth.FICHIERS_COURS,
+                            FolderViewDepth.FICHIERS_SUJETS -> currentDepth = FolderViewDepth.CHOIX_COURS_OU_SUJETS
+                            FolderViewDepth.CHOIX_COURS_OU_SUJETS -> currentDepth = FolderViewDepth.FILIERES_ROOT
+                            FolderViewDepth.FILIERES_ROOT -> {}
+                        }
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
+            // Logo standard dossier sans étoile
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            if (allLocalFiles.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-                        Text(
-                            text = "Aucun document enregistré",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Button(
-                            onClick = onNavigateToSearch,
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Rechercher des cours", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            } else {
-                when (currentDepth) {
-                    // 1. Classement par Filière d'abord (en mosaïque)
-                    FolderViewDepth.FILIERES_ROOT -> {
+            Text(
+                text = "CAMPUS EDUCATIF",
+                fontSize = 18.sp,
+                fontFamily = com.example.ui.theme.AntonFontFamily,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 0.5.sp,
+                modifier = Modifier.weight(1f)
+            )
+
+            IconButton(
+                onClick = onEditProfile,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Modifier mon profil",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Fil d'Ariane épuré avec séparateurs espacés (aucun '>')
+        BreadcrumbMosaicBar(
+            depth = currentDepth,
+            filiere = extractFiliereCode(selectedFiliereName),
+            onNavigate = { newDepth -> currentDepth = newDepth }
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Contenu selon la profondeur d'arborescence
+        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+            when (currentDepth) {
+                // 1. Liste des dossiers de filières
+                FolderViewDepth.FILIERES_ROOT -> {
+                    if (distinctFilieres.isEmpty()) {
+                        EmptyEnregistresState(onNavigateToSearch = onNavigateToSearch)
+                    } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            item {
-                                Text(
-                                    text = "Dossiers des Filières",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                            }
-
                             val pairs = distinctFilieres.chunked(2)
                             items(pairs) { rowFilieres ->
                                 Row(
@@ -259,27 +230,23 @@ fun EnregistresScreen(
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     val f1 = rowFilieres[0]
-                                    val count1 = allRecords.count { it.meta.filiereNom == f1 }
                                     MosaicFolderCard(
-                                        title = f1,
-                                        subtitle = "$count1 document(s)",
+                                        code = extractFiliereCode(f1),
                                         modifier = Modifier.weight(1f),
                                         onClick = {
                                             selectedFiliereName = f1
-                                            currentDepth = FolderViewDepth.NIVEAUX_DE_FILIERE
+                                            currentDepth = FolderViewDepth.CHOIX_COURS_OU_SUJETS
                                         }
                                     )
 
                                     if (rowFilieres.size > 1) {
                                         val f2 = rowFilieres[1]
-                                        val count2 = allRecords.count { it.meta.filiereNom == f2 }
                                         MosaicFolderCard(
-                                            title = f2,
-                                            subtitle = "$count2 document(s)",
+                                            code = extractFiliereCode(f2),
                                             modifier = Modifier.weight(1f),
                                             onClick = {
                                                 selectedFiliereName = f2
-                                                currentDepth = FolderViewDepth.NIVEAUX_DE_FILIERE
+                                                currentDepth = FolderViewDepth.CHOIX_COURS_OU_SUJETS
                                             }
                                         )
                                     } else {
@@ -289,164 +256,52 @@ fun EnregistresScreen(
                             }
                         }
                     }
+                }
 
-                    // 2. Dossiers par Niveau dans la filière (en mosaïque)
-                    FolderViewDepth.NIVEAUX_DE_FILIERE -> {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                // 2. Deux dossiers : "Cours" et "Sujets"
+                FolderViewDepth.CHOIX_COURS_OU_SUJETS -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            item {
-                                Text(
-                                    text = "$selectedFiliereName - Choisissez le niveau",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                            }
-
-                            val pairs = niveauxForSelectedFiliere.chunked(2)
-                            items(pairs) { rowNiveaux ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    val n1 = rowNiveaux[0]
-                                    val count1 = allRecords.count { it.meta.filiereNom == selectedFiliereName && it.meta.niveau == n1 }
-                                    MosaicFolderCard(
-                                        title = "Niveau $n1",
-                                        subtitle = "$count1 document(s)",
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            selectedNiveauName = n1
-                                            currentDepth = FolderViewDepth.CHOIX_UE_OU_SUJET
-                                        }
-                                    )
-
-                                    if (rowNiveaux.size > 1) {
-                                        val n2 = rowNiveaux[1]
-                                        val count2 = allRecords.count { it.meta.filiereNom == selectedFiliereName && it.meta.niveau == n2 }
-                                        MosaicFolderCard(
-                                            title = "Niveau $n2",
-                                            subtitle = "$count2 document(s)",
-                                            modifier = Modifier.weight(1f),
-                                            onClick = {
-                                                selectedNiveauName = n2
-                                                currentDepth = FolderViewDepth.CHOIX_UE_OU_SUJET
-                                            }
-                                        )
-                                    } else {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. Exactement deux dossiers en mosaïque : "UEs" et "Sujets, TD & TP"
-                    FolderViewDepth.CHOIX_UE_OU_SUJET -> {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text(
-                                text = "$selectedFiliereName ($selectedNiveauName)",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                            MosaicFolderCard(
+                                code = "Cours",
+                                modifier = Modifier.weight(1f),
+                                onClick = { currentDepth = FolderViewDepth.FICHIERS_COURS }
                             )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                MosaicFolderCard(
-                                    title = "Dossier UEs",
-                                    subtitle = "${coursRecords.size} cours",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { currentDepth = FolderViewDepth.LISTE_CODES_UE }
-                                )
-
-                                MosaicFolderCard(
-                                    title = "Sujets, TD & TP",
-                                    subtitle = "${tdSujetsRecords.size} épreuve(s)",
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { currentDepth = FolderViewDepth.FICHIERS_TD_SUJETS }
-                                )
-                            }
+                            MosaicFolderCard(
+                                code = "Sujets",
+                                modifier = Modifier.weight(1f),
+                                onClick = { currentDepth = FolderViewDepth.FICHIERS_SUJETS }
+                            )
                         }
                     }
+                }
 
-                    // 4a. Dans "UEs" : les codes unités en mosaïque
-                    FolderViewDepth.LISTE_CODES_UE -> {
-                        LazyColumn(
+                // 3a. Liste des cours (aucun texte "Dossier UEs - ...")
+                FolderViewDepth.FICHIERS_COURS -> {
+                    if (coursRecords.isEmpty()) {
+                        Box(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentAlignment = Alignment.Center
                         ) {
-                            item {
-                                Text(
-                                    text = "Codes d'Unités d'Enseignement (UE)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                            }
-
-                            val pairs = ueCodesList.chunked(2)
-                            items(pairs) { rowUes ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    val ue1 = rowUes[0]
-                                    MosaicFolderCard(
-                                        title = "UE ${ue1.first}",
-                                        subtitle = "${ue1.second.size} cours",
-                                        modifier = Modifier.weight(1f),
-                                        onClick = {
-                                            selectedUeCode = ue1.first
-                                            currentDepth = FolderViewDepth.FICHIERS_COURS_UE
-                                        }
-                                    )
-
-                                    if (rowUes.size > 1) {
-                                        val ue2 = rowUes[1]
-                                        MosaicFolderCard(
-                                            title = "UE ${ue2.first}",
-                                            subtitle = "${ue2.second.size} cours",
-                                            modifier = Modifier.weight(1f),
-                                            onClick = {
-                                                selectedUeCode = ue2.first
-                                                currentDepth = FolderViewDepth.FICHIERS_COURS_UE
-                                            }
-                                        )
-                                    } else {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
+                            Text(
+                                text = "Aucun cours enregistré pour cette filière.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    }
-
-                    // 5a. Cours affichés en liste avec icône d'extension (ou PDF)
-                    FolderViewDepth.FICHIERS_COURS_UE -> {
+                    } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            item {
-                                Text(
-                                    text = "Cours de l'UE $selectedUeCode",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                            }
-
-                            items(coursForSelectedUe, key = { it.localDoc.name }) { item ->
+                            items(coursRecords, key = { it.localDoc.name }) { item ->
                                 FileListRow(
                                     item = item,
                                     onOpen = { viewModel.openLocalFile(context, item.localDoc) },
@@ -456,36 +311,33 @@ fun EnregistresScreen(
                             }
                         }
                     }
+                }
 
-                    // 4b. Sujets, TD & TP affichés en liste
-                    FolderViewDepth.FICHIERS_TD_SUJETS -> {
+                // 3b. Liste des sujets (aucun texte superflu)
+                FolderViewDepth.FICHIERS_SUJETS -> {
+                    if (sujetsRecords.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Aucun sujet d'examen enregistré pour cette filière.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            item {
-                                Text(
-                                    text = "Sujets, TD & TP - $selectedFiliereName ($selectedNiveauName)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(bottom = 4.dp)
+                            items(sujetsRecords, key = { it.localDoc.name }) { item ->
+                                FileListRow(
+                                    item = item,
+                                    onOpen = { viewModel.openLocalFile(context, item.localDoc) },
+                                    onOpenInAi = { onStudyWithAi(item.localDoc) },
+                                    onDelete = { viewModel.deleteLocalFile(context, item.localDoc) }
                                 )
-                            }
-
-                            if (tdSujetsRecords.isEmpty()) {
-                                item {
-                                    Text("Aucun sujet ou TD dans ce dossier.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            } else {
-                                items(tdSujetsRecords, key = { it.localDoc.name }) { item ->
-                                    FileListRow(
-                                        item = item,
-                                        onOpen = { viewModel.openLocalFile(context, item.localDoc) },
-                                        onOpenInAi = { onStudyWithAi(item.localDoc) },
-                                        onDelete = { viewModel.deleteLocalFile(context, item.localDoc) }
-                                    )
-                                }
                             }
                         }
                     }
@@ -496,60 +348,59 @@ fun EnregistresScreen(
 }
 
 /**
- * Carte de dossier affichée en mosaïque (grille 2 colonnes)
+ * Carte de dossier en mosaïque :
+ * Affiche uniquement l'icône du dossier et le code/nom au centre.
  */
 @Composable
 private fun MosaicFolderCard(
-    title: String,
-    subtitle: String,
+    code: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Card(
         modifier = modifier
-            .fillMaxWidth()
-            .height(105.dp)
-            .clickable { onClick() },
+            .height(90.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = Icons.Default.Folder,
-                contentDescription = null,
-                tint = Color(0xFFF59E0B), // Teinte dossier Windows
-                modifier = Modifier.size(36.dp)
+                contentDescription = "Dossier $code",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(34.dp)
             )
 
-            Column {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = code,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
 
 /**
- * Ligne de fichier affiché en liste avec icône de son format (ou PDF par défaut),
- * nom du cours et boutons "Lire" & "Ouvrir dans une IA".
+ * Ligne de fichier téléchargé :
+ * Logo extension à gauche, nom sans .pdf au centre, actions Lire / IA / Supprimer.
  */
 @Composable
 private fun FileListRow(
@@ -558,39 +409,47 @@ private fun FileListRow(
     onOpenInAi: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val localDoc = item.localDoc
-    val extension = localDoc.file.extension.ifBlank { "pdf" }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FileLogoBadge(
-                extension = extension,
-                modifier = Modifier.size(width = 42.dp, height = 50.dp)
+                extension = item.localDoc.file.extension
             )
 
             Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = localDoc.formattedTitle,
+                    text = item.localDoc.formattedTitle.replace(Regex("(?i)\\.pdf$"), "").trim(),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                if (item.meta.ueCode.isNotBlank() && item.meta.ueCode != "UE") {
+                    Text(
+                        text = item.meta.ueCode,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -630,86 +489,161 @@ private fun FileListRow(
 }
 
 /**
- * Fil d'Ariane sans "Ce PC"
+ * Fil d'Ariane avec symbole moderne et espacements généreux (aucun '>')
  */
 @Composable
 private fun BreadcrumbMosaicBar(
     depth: FolderViewDepth,
     filiere: String,
-    niveau: String,
-    ueCode: String,
     onNavigate: (FolderViewDepth) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Dossiers",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onNavigate(FolderViewDepth.FILIERES_ROOT) }
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = "Racine",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onNavigate(FolderViewDepth.FILIERES_ROOT) }
             )
 
             if (filiere.isNotBlank() && depth != FolderViewDepth.FILIERES_ROOT) {
-                Text(text = " > ", fontSize = 11.sp, color = Color.Gray)
+                BreadcrumbSeparator()
+
                 Text(
-                    text = filiere.take(12),
-                    fontSize = 11.sp,
+                    text = filiere,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (depth == FolderViewDepth.NIVEAUX_DE_FILIERE) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigate(FolderViewDepth.NIVEAUX_DE_FILIERE) }
+                    color = if (depth == FolderViewDepth.CHOIX_COURS_OU_SUJETS) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onNavigate(FolderViewDepth.CHOIX_COURS_OU_SUJETS) }
                 )
             }
 
-            if (niveau.isNotBlank() && (depth == FolderViewDepth.CHOIX_UE_OU_SUJET || depth == FolderViewDepth.LISTE_CODES_UE || depth == FolderViewDepth.FICHIERS_COURS_UE || depth == FolderViewDepth.FICHIERS_TD_SUJETS)) {
-                Text(text = " > ", fontSize = 11.sp, color = Color.Gray)
-                Text(
-                    text = niveau,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (depth == FolderViewDepth.CHOIX_UE_OU_SUJET) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigate(FolderViewDepth.CHOIX_UE_OU_SUJET) }
-                )
-            }
+            if (depth == FolderViewDepth.FICHIERS_COURS) {
+                BreadcrumbSeparator()
 
-            if (depth == FolderViewDepth.LISTE_CODES_UE || depth == FolderViewDepth.FICHIERS_COURS_UE) {
-                Text(text = " > ", fontSize = 11.sp, color = Color.Gray)
                 Text(
-                    text = "UEs",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (depth == FolderViewDepth.LISTE_CODES_UE) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigate(FolderViewDepth.LISTE_CODES_UE) }
-                )
-            } else if (depth == FolderViewDepth.FICHIERS_TD_SUJETS) {
-                Text(text = " > ", fontSize = 11.sp, color = Color.Gray)
-                Text(
-                    text = "Sujets & TD",
-                    fontSize = 11.sp,
+                    text = "Cours",
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-            }
+            } else if (depth == FolderViewDepth.FICHIERS_SUJETS) {
+                BreadcrumbSeparator()
 
-            if (ueCode.isNotBlank() && depth == FolderViewDepth.FICHIERS_COURS_UE) {
-                Text(text = " > ", fontSize = 11.sp, color = Color.Gray)
                 Text(
-                    text = ueCode,
-                    fontSize = 11.sp,
+                    text = "Sujets",
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
     }
+}
+
+/**
+ * Séparateur moderne avec espace généreux de chaque côté
+ */
+@Composable
+private fun BreadcrumbSeparator() {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+        modifier = Modifier.padding(horizontal = 12.dp)
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(2.dp)
+                .size(14.dp)
+        )
+    }
+}
+
+@Composable
+private fun EmptyEnregistresState(onNavigateToSearch: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.FolderOpen,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            modifier = Modifier.size(56.dp)
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "Aucun document enregistré",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Téléchargez des cours et des sujets pour les retrouver ici classés par filière.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Button(
+            onClick = onNavigateToSearch,
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Rechercher des documents", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+private fun extractFiliereCode(filiereName: String): String {
+    val clean = filiereName.trim()
+    if (clean.length <= 5 && !clean.contains(" ")) {
+        return clean.uppercase()
+    }
+    val parenMatch = Regex("""\(([A-Za-z0-9]+)\)""").find(clean)
+    if (parenMatch != null) {
+        return parenMatch.groupValues[1].uppercase()
+    }
+    val lower = clean.lowercase()
+    if (lower.contains("informatique") || lower.contains("info")) return "INF"
+    if (lower.contains("reseau") || lower.contains("réseau") || lower.contains("telecom") || lower.contains("télécom") || lower.contains("rim") || lower.contains("internet")) return "RIM"
+    if (lower.contains("genie logiciel") || lower.contains("génie logiciel") || lower.contains("logiciel")) return "GL"
+    if (lower.contains("medecine") || lower.contains("médecine") || lower.contains("fmsb") || lower.contains("sante") || lower.contains("santé")) return "FMSB"
+    if (lower.contains("science") || lower.contains("fondamentale") || lower.contains("fs")) return "FS"
+    if (lower.contains("mathematique") || lower.contains("mathématique") || lower.contains("math")) return "MATH"
+    if (lower.contains("physique")) return "PHY"
+    if (lower.contains("chimie")) return "CHIM"
+    if (lower.contains("biologie") || lower.contains("bio")) return "BIO"
+    if (lower.contains("droit")) return "DROIT"
+    if (lower.contains("gestion") || lower.contains("eco") || lower.contains("éco")) return "ECO"
+
+    val words = clean.split(" ", "-", "_").filter { it.length > 2 && it.lowercase() !in listOf("les", "des", "pour", "dans", "avec", "de", "du", "et", "en") }
+    if (words.size >= 2) {
+        return words.map { it.first() }.joinToString("").uppercase().take(4)
+    }
+    return clean.take(4).uppercase()
 }
 
 private fun extractUeCode(name: String): String {

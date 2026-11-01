@@ -12,6 +12,7 @@ data class StudentProfile(
     val filiereCode: String? = null,
     val filiereNom: String? = null,
     val niveau: String = "L1",
+    val onlyMyCourses: Boolean = false,
     val isConfigured: Boolean = false
 ) {
     val displaySummary: String
@@ -50,6 +51,7 @@ class StudentProfileManager(context: Context) {
         val filiereCode = prefs.getString("filiere_code", null)
         val filiereNom = prefs.getString("filiere_nom", null)
         val niveau = prefs.getString("niveau", "L1") ?: "L1"
+        val onlyMyCourses = prefs.getBoolean("only_my_courses", false)
 
         return StudentProfile(
             ecoleId = ecoleId,
@@ -58,6 +60,7 @@ class StudentProfileManager(context: Context) {
             filiereCode = filiereCode,
             filiereNom = filiereNom,
             niveau = niveau,
+            onlyMyCourses = onlyMyCourses,
             isConfigured = isConfigured
         )
     }
@@ -72,6 +75,7 @@ class StudentProfileManager(context: Context) {
                 profile.filiereCode?.let { putString("filiere_code", it) } ?: remove("filiere_code")
                 profile.filiereNom?.let { putString("filiere_nom", it) } ?: remove("filiere_nom")
                 putString("niveau", profile.niveau)
+                putBoolean("only_my_courses", profile.onlyMyCourses)
             }
             .apply()
     }
