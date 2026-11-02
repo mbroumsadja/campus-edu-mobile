@@ -1,25 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Icône d'application : logo Campus Edu inversé, centré dans la zone sûre (66 dp sur 108) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- Graduation Cap Top Diamond -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,32 L84,45 L54,58 L24,45 Z" />
-
-    <!-- Cap Base (Underneath Top Diamond) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M35,52.5 L35,63 C35,70.5 42.5,74.5 54,74.5 C65.5,74.5 73,70.5 73,63 L73,52.5 C68,55.5 61.5,57.2 54,57.2 C46.5,57.2 40,55.5 35,52.5 Z" />
-
-    <!-- Right Side Tassel -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M77,47 L77,65 M75,65 L79,65 L79,71 L75,71 Z" />
-
+    <group
+        android:scaleX="0.5"
+        android:scaleY="0.5"
+        android:translateX="24"
+        android:translateY="24">
+        <path
+            android:fillColor="#2B4F9E"
+            android:pathData="M34,46 V68 C34,78 86,78 86,68 V46 Z" />
+        <path
+            android:fillColor="#4CC2FF"
+            android:pathData="M60,20 L106,41 L60,62 L14,41 Z" />
+        <path
+            android:pathData="M60,29 V46 M52,39 L60,47 L68,39"
+            android:strokeColor="#0A1B3D"
+            android:strokeWidth="4.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M106,41 V66"
+            android:strokeColor="#F5A524"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round" />
+        <path
+            android:fillColor="#F5A524"
+            android:pathData="M100,71 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z" />
+        <path
+            android:fillColor="#E6ECF6"
+            android:pathData="M14,82 Q37,74 60,86 Q83,74 106,82 V100 Q83,92 60,104 Q37,92 14,100 Z" />
+        <path
+            android:pathData="M60,86 V104"
+            android:strokeColor="#0A1B3D"
+            android:strokeWidth="2.5" />
+    </group>
 </vector>
-
-

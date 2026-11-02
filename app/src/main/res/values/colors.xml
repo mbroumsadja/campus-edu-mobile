@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Palette claire adaptée bleu et blanc -->
-    <color name="splash_background">#F8FAFC</color>
-    <color name="splash_primary">#0284C7</color>
-    <color name="logo_cap_background">#0284C7</color>
-    <color name="status_bar_color">#F8FAFC</color>
-    <color name="nav_bar_color">#F8FAFC</color>
+    <!-- Palette claire Campus Edu : Papier et Azur -->
+    <color name="splash_background">#F6F8FC</color>
+    <color name="splash_primary">#1456D6</color>
+    <color name="logo_cap_background">#1456D6</color>
+    <color name="status_bar_color">#F6F8FC</color>
+    <color name="nav_bar_color">#F6F8FC</color>
 
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>

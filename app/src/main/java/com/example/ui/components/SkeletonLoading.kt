@@ -192,20 +192,11 @@ fun SearchSkeleton(modifier: Modifier = Modifier) {
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primaryContainer),
+                Image(
+                    painter = painterResource(id = com.example.ui.search.components.campusEduMarkRes),
+                    contentDescription = "Logo Campus Edu",
                     modifier = Modifier.size(32.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                        contentDescription = "Logo",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
+                )
 
                 Spacer(modifier = Modifier.width(10.dp))
 

@@ -180,7 +180,7 @@ fun EnregistresScreen(
             Text(
                 text = "CAMPUS EDUCATIF",
                 fontSize = 18.sp,
-                fontFamily = com.example.ui.theme.AntonFontFamily,
+                fontFamily = com.example.ui.theme.SoraFontFamily,
                 fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.primary,
                 letterSpacing = 0.5.sp,

@@ -7,6 +7,6 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_academic_cap_white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_campus_edu_mark</item>
     </style>
 </resources>

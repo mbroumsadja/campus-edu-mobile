@@ -183,34 +183,27 @@ fun StudentOnboardingScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 // Logo chapeau académique blanc
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primaryContainer),
-                    shadowElevation = 6.dp,
-                    modifier = Modifier.size(86.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                        contentDescription = "Logo Campus Educatif",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
+                Image(
+                    painter = painterResource(id = com.example.ui.search.components.campusEduMarkRes),
+                    contentDescription = "Logo Campus Edu",
+                    modifier = Modifier.size(88.dp)
+                )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Titre en MAJUSCULE avec police épaisse et compacte
-                Text(
-                    text = if (initialProfile.isConfigured) "MODIFIER MON PROFIL" else "CAMPUS EDUCATIF",
-                    fontSize = 26.sp,
-                    fontFamily = com.example.ui.theme.AntonFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 0.5.sp,
-                    textAlign = TextAlign.Center
-                )
+                // Titre : nom de la marque, ou « Modifier mon profil » si le profil existe déjà
+                if (initialProfile.isConfigured) {
+                    Text(
+                        text = "Modifier mon profil",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center
+                    )
+                } else {
+                    com.example.ui.search.components.CampusEduWordmark(
+                        style = MaterialTheme.typography.headlineLarge
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 

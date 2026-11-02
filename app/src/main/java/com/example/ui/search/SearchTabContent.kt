@@ -40,8 +40,12 @@ import com.example.data.model.*
 import com.example.data.preferences.StudentProfile
 import com.example.data.repository.DownloadStatus
 import com.example.ui.components.SearchSkeleton
+import com.example.ui.search.components.CampusEduWordmark
 import com.example.ui.search.components.CoursItemCard
+import com.example.ui.search.components.ResumeCard
 import com.example.ui.search.components.SujetItemCard
+import com.example.ui.search.components.campusEduMarkRes
+import com.example.ui.search.components.cleanDocumentTitle
 
 /**
  * Page de recherche académique de CAMPUS EDUCATIF.
@@ -61,10 +65,12 @@ fun SearchTabContent(
     onDownloadSujet: (Sujet, Boolean, UeWithDocuments) -> Unit,
     onStudyCoursWithAi: (Cours, UeWithDocuments) -> Unit,
     onStudySujetWithAi: (Sujet, Boolean, UeWithDocuments) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSeeSaved: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val allLocalFiles by viewModel.allLocalFiles.collectAsState()
 
     val searchQuery by viewModel.searchQuery.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
@@ -98,38 +104,29 @@ fun SearchTabContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (!isSearchingOrActive) {
-            // ÉTAT REPOS : Espace pour centrer
-            Spacer(modifier = Modifier.weight(0.5f))
+            // ÉTAT REPOS : une idée, une action (chercher). Beaucoup d'air autour du logo.
+            Spacer(modifier = Modifier.weight(0.4f))
 
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primaryContainer),
-                shadowElevation = 6.dp,
-                modifier = Modifier.size(86.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                    contentDescription = "Logo Campus Educatif",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                )
-            }
+            Image(
+                painter = painterResource(id = campusEduMarkRes),
+                contentDescription = "Logo Campus Edu",
+                modifier = Modifier.size(88.dp)
+            )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            CampusEduWordmark(style = MaterialTheme.typography.headlineLarge)
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "CAMPUS EDUCATIF",
-                fontSize = 28.sp,
-                fontFamily = com.example.ui.theme.AntonFontFamily,
-                fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.primary,
-                letterSpacing = 0.5.sp,
+                text = "Cours, sujets et corrigés de ta filière",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(32.dp))
         } else {
             // ÉTAT CHARGEMENT / RECHERCHE ACTIVE : Positionnement en haut à exactement 5px du top
             Spacer(modifier = Modifier.height(5.dp))
@@ -140,38 +137,23 @@ fun SearchTabContent(
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primaryContainer),
-                    shadowElevation = 2.dp,
+                Image(
+                    painter = painterResource(id = campusEduMarkRes),
+                    contentDescription = "Logo Campus Edu",
                     modifier = Modifier.size(34.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                        contentDescription = "Logo Campus Educatif",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
+                )
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Text(
-                    text = "CAMPUS EDUCATIF",
-                    fontSize = 20.sp,
-                    fontFamily = com.example.ui.theme.AntonFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 0.5.sp,
+                CampusEduWordmark(
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f)
                 )
 
-                // Accès direct à la modification du profil d'études (icône Edit)
+                // Accès direct à la modification du profil d'études (icône Edit), zone tactile 44 dp
                 IconButton(
                     onClick = onEditProfile,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
@@ -208,38 +190,43 @@ fun SearchTabContent(
         Spacer(modifier = Modifier.height(if (isSearchingOrActive) 14.dp else 16.dp))
 
         if (!isSearchingOrActive) {
-            // Bouton de consultation et de modification de la filière enregistrée (icône Edit)
+            // Pastille filière + niveau (choix mémorisé : rien à ressaisir), zone tactile 44 dp
             Surface(
                 onClick = onEditProfile,
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.heightIn(min = 44.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "${profile.filiereCode ?: profile.filiereNom ?: "Filière"} • ${profile.niveau}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = "${profile.filiereCode ?: profile.filiereNom ?: "Filière"} · ${profile.niveau}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Modifier",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = "Changer",
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+            }
+
+            // Reprendre : dernier document déjà enregistré, disponible sans connexion
+            val lastDoc = allLocalFiles.firstOrNull()
+            if (lastDoc != null) {
+                Spacer(modifier = Modifier.height(24.dp))
+                ResumeCard(
+                    title = cleanDocumentTitle(lastDoc.formattedTitle),
+                    detail = "${lastDoc.typeCategory} · ${lastDoc.niveau} · ${lastDoc.sizeFormatted}",
+                    onClick = onSeeSaved,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 600.dp)
+                )
             }
 
             Spacer(modifier = Modifier.weight(0.9f))

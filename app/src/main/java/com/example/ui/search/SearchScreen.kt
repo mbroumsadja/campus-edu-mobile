@@ -201,6 +201,7 @@ fun SearchScreen(
                         viewModel = viewModel,
                         profile = studentProfile,
                         onEditProfile = { showOnboarding = true },
+                        onSeeSaved = { selectedTab = 1 },
                         onDownloadCours = { cours, ue ->
                             val key = "cours_${cours.id}"
                             profileManager.saveDocumentMeta(

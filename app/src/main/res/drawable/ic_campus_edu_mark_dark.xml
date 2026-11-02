@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo Campus Edu v1.0, version inversée (fond Minuit / Marine) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#2B4F9E"
+        android:pathData="M34,46 V68 C34,78 86,78 86,68 V46 Z" />
+    <path
+        android:fillColor="#4CC2FF"
+        android:pathData="M60,20 L106,41 L60,62 L14,41 Z" />
+    <path
+        android:pathData="M60,29 V46 M52,39 L60,47 L68,39"
+        android:strokeColor="#0A1B3D"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M106,41 V66"
+        android:strokeColor="#F5A524"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#F5A524"
+        android:pathData="M100,71 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0 Z" />
+    <path
+        android:fillColor="#E6ECF6"
+        android:pathData="M14,82 Q37,74 60,86 Q83,74 106,82 V100 Q83,92 60,104 Q37,92 14,100 Z" />
+    <path
+        android:pathData="M60,86 V104"
+        android:strokeColor="#0A1B3D"
+        android:strokeWidth="2.5" />
+</vector>
