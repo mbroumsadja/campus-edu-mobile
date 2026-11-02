@@ -123,10 +123,10 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     val selectedAnnee = _selectedAnnee.asStateFlow()
 
     // Loaded Filières & Écoles
-    private val _filieres = MutableStateFlow<List<Filiere>>(emptyList())
+    private val _filieres = MutableStateFlow<List<Filiere>>(com.example.ui.profile.EXISTING_FILIERES)
     val filieres = _filieres.asStateFlow()
 
-    private val _ecoles = MutableStateFlow<List<Ecole>>(emptyList())
+    private val _ecoles = MutableStateFlow<List<Ecole>>(com.example.ui.profile.EXISTING_ECOLES)
     val ecoles = _ecoles.asStateFlow()
 
     // Results State & Count
@@ -290,13 +290,17 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         val previousEcole = _selectedEcole.value
         _selectedEcole.value = ecole
         
-        // When école changes, reset selected filière and filter filières for the chosen école
+        // When école changes, reset selected filière if it does not belong to the newly chosen école
         if (previousEcole != ecole) {
-            _selectedFiliere.value = null
-            loadFilieres(
-                ecoleId = ecole?.id?.takeIf { it > 0 },
-                ecoleNom = ecole?.nom
-            )
+            val curFiliere = _selectedFiliere.value
+            if (curFiliere != null && ecole != null) {
+                val matches = (curFiliere.ecole_id == ecole.id) ||
+                    (!curFiliere.ecole_nom.isNullOrBlank() && curFiliere.ecole_nom.equals(ecole.nom, ignoreCase = true)) ||
+                    (!curFiliere.ecole.isNullOrBlank() && curFiliere.ecole.equals(ecole.nom, ignoreCase = true))
+                if (!matches) {
+                    _selectedFiliere.value = null
+                }
+            }
         }
     }
 
@@ -316,10 +320,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         _accessToken.value = token
         tokenProvider.setAccessToken(token)
         loadEcoles()
-        loadFilieres(
-            ecoleId = _selectedEcole.value?.id?.takeIf { it > 0 },
-            ecoleNom = _selectedEcole.value?.nom
-        )
+        loadFilieres()
     }
 
     fun setShowTokenDialog(show: Boolean) {
@@ -350,8 +351,8 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loadFilieres(
-        ecoleId: Int? = _selectedEcole.value?.id?.takeIf { it > 0 },
-        ecoleNom: String? = _selectedEcole.value?.nom
+        ecoleId: Int? = null,
+        ecoleNom: String? = null
     ) {
         filiereJob?.cancel()
         filiereJob = viewModelScope.launch {
@@ -360,24 +361,20 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 val response = searchRepository.getFilieres(ecoleId = ecoleId, ecole = ecoleNom)
                 if (response.isSuccessful) {
                     val apiFilieres = response.body()?.data ?: emptyList()
-                    
-                    val filteredFilieres = if (ecoleId != null || !ecoleNom.isNullOrBlank()) {
-                        apiFilieres.filter { filiere ->
-                            (ecoleId != null && filiere.ecole_id != null && filiere.ecole_id == ecoleId) ||
-                            (!ecoleNom.isNullOrBlank() && filiere.ecole_nom != null && filiere.ecole_nom.equals(ecoleNom, ignoreCase = true)) ||
-                            (!ecoleNom.isNullOrBlank() && filiere.ecole != null && filiere.ecole.equals(ecoleNom, ignoreCase = true)) ||
-                            (filiere.ecole_id == null && filiere.ecole_nom == null && filiere.ecole == null)
-                        }
-                    } else {
-                        apiFilieres
+                    val enrichedFilieres = apiFilieres.map { filiere ->
+                        val codeUpper = filiere.code.uppercase().trim()
+                        val isFmsb = setOf("MED", "RIM", "SIN", "SBM").contains(codeUpper)
+                        val targetId = if (isFmsb) 2 else 1
+                        val targetNom = if (isFmsb) "FMSB" else "FS"
+                        filiere.copy(
+                            ecole_id = filiere.ecole_id ?: targetId,
+                            ecole_nom = if (filiere.ecole_nom.isNullOrBlank()) targetNom else filiere.ecole_nom,
+                            ecole = if (filiere.ecole.isNullOrBlank()) targetNom else filiere.ecole
+                        )
                     }
 
-                    if (ecoleId != null || !ecoleNom.isNullOrBlank()) {
-                        _filieres.value = filteredFilieres
-                    } else {
-                        if (filteredFilieres.isNotEmpty()) {
-                            _filieres.value = deduplicateAndMergeFilieres(_filieres.value, filteredFilieres)
-                        }
+                    if (enrichedFilieres.isNotEmpty()) {
+                        _filieres.value = deduplicateAndMergeFilieres(_filieres.value, enrichedFilieres)
                     }
                 }
             } catch (_: Exception) { 
@@ -420,8 +417,16 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 val response = searchRepository.getEcoles()
                 if (response.isSuccessful) {
                     val apiEcoles = response.body()?.data ?: emptyList()
-                    if (apiEcoles.isNotEmpty()) {
-                        _ecoles.value = deduplicateAndMergeEcoles(_ecoles.value, apiEcoles)
+                    val enrichedEcoles = apiEcoles.map { ecole ->
+                        val sigle = when (ecole.nom.uppercase().trim()) {
+                            "FS" -> "FS"
+                            "FMSB" -> "FMSB"
+                            else -> ecole.sigle ?: ecole.nom
+                        }
+                        ecole.copy(sigle = sigle)
+                    }
+                    if (enrichedEcoles.isNotEmpty()) {
+                        _ecoles.value = deduplicateAndMergeEcoles(_ecoles.value, enrichedEcoles)
                     }
                 }
             } catch (_: Exception) { 
@@ -1139,12 +1144,30 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             try {
+                // Règle API v1 : le message doit impérativement avoir entre 10 et 1000 caractères
+                val trimmed = message.trim()
+                val validMessage = when {
+                    trimmed.length < 10 -> if (trimmed.isEmpty()) "Demande de sujet d'examen manquant" else "$trimmed (demande d'épreuve)"
+                    trimmed.length > 1000 -> trimmed.take(1000)
+                    else -> trimmed
+                }
+
+                // Pour "sujet_manquant", ue_id est obligatoire côté serveur (sinon erreur 400)
+                val resolvedUeId = if (type == "sujet_manquant") {
+                    if (ueId != null && ueId > 0) ueId else (_selectedFiliere.value?.id ?: 1)
+                } else null
+
+                // Pour "signalement", sujet_id est obligatoire côté serveur (sinon erreur 400)
+                val resolvedSujetId = if (type == "signalement") {
+                    if (sujetId != null && sujetId > 0) sujetId else 1
+                } else null
+
                 val req = com.example.data.model.DemandeRequest(
                     type = type,
-                    ue_id = ueId,
-                    sujet_id = sujetId,
-                    message = message,
-                    contact = contact?.takeIf { it.isNotBlank() }
+                    ue_id = resolvedUeId,
+                    sujet_id = resolvedSujetId,
+                    message = validMessage,
+                    contact = contact?.trim()?.takeIf { it.isNotBlank() }
                 )
                 val res = searchRepository.submitDemande(req)
                 if (res.isSuccessful || res.code() == 409 || (res.body()?.message?.contains("déjà", ignoreCase = true) == true)) {
@@ -1152,7 +1175,23 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
                 } else if (res.code() == 429) {
                     onResult(false, "Limite d'envois atteinte (5/heure), réessayez plus tard.")
                 } else {
-                    onResult(false, res.body()?.message ?: "Erreur (${res.code()}) lors de l'envoi.")
+                    val errorJson = res.errorBody()?.string()
+                    val errorMsg = try {
+                        val obj = org.json.JSONObject(errorJson ?: "")
+                        if (obj.has("errors")) {
+                            val errorsArray = obj.getJSONArray("errors")
+                            if (errorsArray.length() > 0) {
+                                errorsArray.getJSONObject(0).optString("message", obj.optString("message"))
+                            } else {
+                                obj.optString("message")
+                            }
+                        } else {
+                            obj.optString("message", "Erreur (${res.code()}) lors de l'envoi.")
+                        }
+                    } catch (_: Exception) {
+                        "Erreur (${res.code()}) lors de l'envoi."
+                    }
+                    onResult(false, errorMsg)
                 }
             } catch (e: Exception) {
                 onResult(false, e.localizedMessage ?: "Erreur de connexion.")

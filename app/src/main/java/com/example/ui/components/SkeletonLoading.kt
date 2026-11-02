@@ -177,57 +177,8 @@ fun SearchSkeleton(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // En-tête de chargement synchronisé au thème avec logo et couleur de l'application
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primaryContainer),
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_academic_cap_white),
-                        contentDescription = "Logo",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Chargement des cours et épreuves...",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                    )
-                }
-            }
-        }
 
         repeat(3) {
             Column(
@@ -266,8 +217,8 @@ fun SearchSkeleton(modifier: Modifier = Modifier) {
                             Card(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(60.dp),
-                                shape = RoundedCornerShape(8.dp),
+                                    .height(54.dp),
+                                shape = RoundedCornerShape(7.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surface
                                 ),
@@ -276,18 +227,18 @@ fun SearchSkeleton(modifier: Modifier = Modifier) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Logo à gauche (exactement 38x46dp)
+                                    // Logo à gauche (exactement 30x38dp synchronisé)
                                     Box(
                                         modifier = Modifier
-                                            .size(width = 38.dp, height = 46.dp)
-                                            .clip(RoundedCornerShape(6.dp))
+                                            .size(width = 30.dp, height = 38.dp)
+                                            .clip(RoundedCornerShape(5.dp))
                                             .shimmerEffect()
                                     )
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
 
                                     // Lignes de titre à droite
                                     Column(

@@ -8,6 +8,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,6 +44,7 @@ import com.example.data.repository.DownloadStatus
 import com.example.ui.components.SearchSkeleton
 import com.example.ui.search.components.CoursItemCard
 import com.example.ui.search.components.SujetItemCard
+import com.example.ui.theme.PlusJakartaSansFontFamily
 
 /**
  * Page de recherche académique de CAMPUS EDUCATIF.
@@ -80,6 +83,8 @@ fun SearchTabContent(
 
     // État local stable indépendant pour éviter toute désynchronisation du clavier
     var localQuery by remember { mutableStateOf(searchQuery) }
+    // Mode d'affichage des cours et sujets : grille (2 colonnes) ou liste (1 colonne)
+    var isGridView by remember { mutableStateOf(true) }
 
     // Synchronisation uniquement si réinitialisé extérieurement
     LaunchedEffect(searchQuery) {
@@ -168,17 +173,32 @@ fun SearchTabContent(
                     modifier = Modifier.weight(1f)
                 )
 
-                // Accès direct à la modification du profil d'études (icône Edit)
-                IconButton(
+                // Accès direct et informations de la filière et du niveau (icône Edit)
+                Surface(
                     onClick = onEditProfile,
-                    modifier = Modifier.size(34.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                    modifier = Modifier.testTag("top_profile_badge")
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Modifier mon profil",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Modifier filière et niveau",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "${profile.filiereCode ?: profile.filiereNom ?: "Filière"} • ${profile.niveau}",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
 
@@ -200,45 +220,105 @@ fun SearchTabContent(
                 viewModel.updateSearchQuery("")
             },
             onSearch = { focusManager.clearFocus() },
+            isGridView = isGridView,
+            onToggleViewMode = { isGridView = !isGridView },
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 600.dp)
         )
 
-        Spacer(modifier = Modifier.height(if (isSearchingOrActive) 14.dp else 16.dp))
+        Spacer(modifier = Modifier.height(if (isSearchingOrActive) 6.dp else 10.dp))
 
         if (!isSearchingOrActive) {
-            // Bouton de consultation et de modification de la filière enregistrée (icône Edit)
+            // Informations complètes et modification du profil d'études (Filière, Niveau, École)
             Surface(
                 onClick = onEditProfile,
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 600.dp)
+                    .testTag("edit_profile_card")
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "${profile.filiereCode ?: profile.filiereNom ?: "Filière"} • ${profile.niveau}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = (profile.filiereCode ?: "FILIÈRE").uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Filière : ${profile.filiereNom ?: profile.filiereCode ?: "Non configurée"}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Niveau : ${profile.niveau}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (!profile.ecoleNom.isNullOrBlank()) {
+                                Text(
+                                    text = "•",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = profile.ecoleNom,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Modifier",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Modifier",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -363,32 +443,26 @@ fun SearchTabContent(
 
                         Column(modifier = Modifier.fillMaxSize()) {
                             if (isOfflineSearch) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(bottom = 6.dp)
+                                        .padding(vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CloudOff,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Connexion internet indisponible - Recherche dans vos cours téléchargés",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.CloudOff,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Connexion internet indisponible",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        color = Color.Gray
+                                    )
                                 }
                             }
 
@@ -431,11 +505,12 @@ fun SearchTabContent(
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     items(sortedUes, key = { it.id }) { ue ->
                                         SearchUeCard(
                                             ue = ue,
+                                            isGridView = isGridView,
                                             downloadedDocs = downloadedDocs,
                                             activeDownloads = activeDownloads,
                                             onDownloadCours = { c -> onDownloadCours(c, ue) },
@@ -528,6 +603,7 @@ fun SearchTabContent(
             onSubmit = { msg, contact ->
                 viewModel.submitDemande(
                     type = "sujet_manquant",
+                    ueId = profile.filiereId ?: 1,
                     message = msg,
                     contact = contact
                 ) { success, note ->
@@ -545,6 +621,8 @@ private fun RectangularSearchBar(
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     onSearch: () -> Unit,
+    isGridView: Boolean = true,
+    onToggleViewMode: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -560,7 +638,7 @@ private fun RectangularSearchBar(
             placeholder = {
                 Text(
                     text = "Rechercher un cours, épreuve, UE...",
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
@@ -572,13 +650,37 @@ private fun RectangularSearchBar(
                 )
             },
             trailingIcon = {
-                if (query.isNotBlank()) {
-                    IconButton(onClick = onClear) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Effacer",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(end = 4.dp)
+                ) {
+                    if (query.isNotBlank()) {
+                        IconButton(
+                            onClick = onClear,
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Effacer",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+                    onToggleViewMode?.let { toggle ->
+                        IconButton(
+                            onClick = toggle,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("view_mode_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                                contentDescription = if (isGridView) "Afficher en liste" else "Afficher en grille",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             },
@@ -602,6 +704,7 @@ private fun RectangularSearchBar(
 @Composable
 private fun SearchUeCard(
     ue: UeWithDocuments,
+    isGridView: Boolean = true,
     downloadedDocs: Set<String>,
     activeDownloads: Map<String, DownloadStatus>,
     onDownloadCours: (Cours) -> Unit,
@@ -618,9 +721,9 @@ private fun SearchUeCard(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // En-tête UE simple sans sous-titre
+        // En-tête UE moderne et lisible
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -632,17 +735,21 @@ private fun SearchUeCard(
             ) {
                 Text(
                     text = ue.code.uppercase(),
-                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSansFontFamily,
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp)
                 )
             }
 
             Text(
                 text = ue.intitule,
-                fontSize = 13.sp,
+                fontFamily = PlusJakartaSansFontFamily,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold,
+                letterSpacing = 0.1.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -650,110 +757,155 @@ private fun SearchUeCard(
             )
         }
 
-        // Cours de l'UE en grille 2 par ligne
+        // Cours de l'UE en grille 2 par ligne ou en liste pleine largeur
         val coursList = ue.cours.orEmpty()
         if (coursList.isNotEmpty()) {
-            coursList.chunked(2).forEach { rowPair ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val c1 = rowPair[0]
-                    val c1Key = "cours_${c1.id}"
-                    CoursItemCard(
-                        cours = c1,
-                        ue = ue,
-                        isDownloaded = downloadedDocs.contains(c1Key),
-                        downloadStatus = activeDownloads[c1Key] ?: DownloadStatus.Idle,
-                        onDownload = { onDownloadCours(c1) },
-                        onOpen = { onOpenCours(c1) },
-                        onStudyWithAi = { onStudyCoursWithAi(c1) },
-                        onShare = { onShareCours(c1) },
-                        onDelete = { onDeleteCours(c1) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (rowPair.size > 1) {
-                        val c2 = rowPair[1]
-                        val c2Key = "cours_${c2.id}"
+            if (isGridView) {
+                coursList.chunked(2).forEach { rowPair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val c1 = rowPair[0]
+                        val c1Key = "cours_${c1.id}"
                         CoursItemCard(
-                            cours = c2,
+                            cours = c1,
                             ue = ue,
-                            isDownloaded = downloadedDocs.contains(c2Key),
-                            downloadStatus = activeDownloads[c2Key] ?: DownloadStatus.Idle,
-                            onDownload = { onDownloadCours(c2) },
-                            onOpen = { onOpenCours(c2) },
-                            onStudyWithAi = { onStudyCoursWithAi(c2) },
-                            onShare = { onShareCours(c2) },
-                            onDelete = { onDeleteCours(c2) },
+                            isDownloaded = downloadedDocs.contains(c1Key),
+                            downloadStatus = activeDownloads[c1Key] ?: DownloadStatus.Idle,
+                            onDownload = { onDownloadCours(c1) },
+                            onOpen = { onOpenCours(c1) },
+                            onStudyWithAi = { onStudyCoursWithAi(c1) },
+                            onShare = { onShareCours(c1) },
+                            onDelete = { onDeleteCours(c1) },
                             modifier = Modifier.weight(1f)
                         )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
+
+                        if (rowPair.size > 1) {
+                            val c2 = rowPair[1]
+                            val c2Key = "cours_${c2.id}"
+                            CoursItemCard(
+                                cours = c2,
+                                ue = ue,
+                                isDownloaded = downloadedDocs.contains(c2Key),
+                                downloadStatus = activeDownloads[c2Key] ?: DownloadStatus.Idle,
+                                onDownload = { onDownloadCours(c2) },
+                                onOpen = { onOpenCours(c2) },
+                                onStudyWithAi = { onStudyCoursWithAi(c2) },
+                                onShare = { onShareCours(c2) },
+                                onDelete = { onDeleteCours(c2) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
+                }
+            } else {
+                coursList.forEach { c ->
+                    val cKey = "cours_${c.id}"
+                    CoursItemCard(
+                        cours = c,
+                        ue = ue,
+                        isDownloaded = downloadedDocs.contains(cKey),
+                        downloadStatus = activeDownloads[cKey] ?: DownloadStatus.Idle,
+                        onDownload = { onDownloadCours(c) },
+                        onOpen = { onOpenCours(c) },
+                        onStudyWithAi = { onStudyCoursWithAi(c) },
+                        onShare = { onShareCours(c) },
+                        onDelete = { onDeleteCours(c) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
 
-        // Sujets d'examen en grille 2 par ligne
+        // Sujets d'examen en grille 2 par ligne ou en liste pleine largeur
         val sujetList = ue.sujets.orEmpty()
         if (sujetList.isNotEmpty()) {
-            sujetList.chunked(2).forEach { rowPair ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val s1 = rowPair[0]
-                    val s1Key = "sujet_${s1.id}"
-                    val corr1Key = "corrige_${s1.id}"
-                    SujetItemCard(
-                        sujet = s1,
-                        ue = ue,
-                        isSujetDownloaded = downloadedDocs.contains(s1Key),
-                        isCorrigeDownloaded = downloadedDocs.contains(corr1Key),
-                        sujetDownloadStatus = activeDownloads[s1Key] ?: DownloadStatus.Idle,
-                        corrigeDownloadStatus = activeDownloads[corr1Key] ?: DownloadStatus.Idle,
-                        onDownloadSujet = { onDownloadSujet(s1, false) },
-                        onOpenSujet = { onOpenSujet(s1, false) },
-                        onStudySujetWithAi = { onStudySujetWithAi(s1, false) },
-                        onShareSujet = { onShareSujet(s1, false) },
-                        onDeleteSujet = { onDeleteSujet(s1, false) },
-                        onDownloadCorrige = { onDownloadSujet(s1, true) },
-                        onOpenCorrige = { onOpenSujet(s1, true) },
-                        onStudyCorrigeWithAi = { onStudySujetWithAi(s1, true) },
-                        onShareCorrige = { onShareSujet(s1, true) },
-                        onDeleteCorrige = { onDeleteSujet(s1, true) },
-                        onReport = { onReportSujet(s1) },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    if (rowPair.size > 1) {
-                        val s2 = rowPair[1]
-                        val s2Key = "sujet_${s2.id}"
-                        val corr2Key = "corrige_${s2.id}"
+            if (isGridView) {
+                sujetList.chunked(2).forEach { rowPair ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val s1 = rowPair[0]
+                        val s1Key = "sujet_${s1.id}"
+                        val corr1Key = "corrige_${s1.id}"
                         SujetItemCard(
-                            sujet = s2,
+                            sujet = s1,
                             ue = ue,
-                            isSujetDownloaded = downloadedDocs.contains(s2Key),
-                            isCorrigeDownloaded = downloadedDocs.contains(corr2Key),
-                            sujetDownloadStatus = activeDownloads[s2Key] ?: DownloadStatus.Idle,
-                            corrigeDownloadStatus = activeDownloads[corr2Key] ?: DownloadStatus.Idle,
-                            onDownloadSujet = { onDownloadSujet(s2, false) },
-                            onOpenSujet = { onOpenSujet(s2, false) },
-                            onStudySujetWithAi = { onStudySujetWithAi(s2, false) },
-                            onShareSujet = { onShareSujet(s2, false) },
-                            onDeleteSujet = { onDeleteSujet(s2, false) },
-                            onDownloadCorrige = { onDownloadSujet(s2, true) },
-                            onOpenCorrige = { onOpenSujet(s2, true) },
-                            onStudyCorrigeWithAi = { onStudySujetWithAi(s2, true) },
-                            onShareCorrige = { onShareSujet(s2, true) },
-                            onDeleteCorrige = { onDeleteSujet(s2, true) },
-                            onReport = { onReportSujet(s2) },
+                            isSujetDownloaded = downloadedDocs.contains(s1Key),
+                            isCorrigeDownloaded = downloadedDocs.contains(corr1Key),
+                            sujetDownloadStatus = activeDownloads[s1Key] ?: DownloadStatus.Idle,
+                            corrigeDownloadStatus = activeDownloads[corr1Key] ?: DownloadStatus.Idle,
+                            onDownloadSujet = { onDownloadSujet(s1, false) },
+                            onOpenSujet = { onOpenSujet(s1, false) },
+                            onStudySujetWithAi = { onStudySujetWithAi(s1, false) },
+                            onShareSujet = { onShareSujet(s1, false) },
+                            onDeleteSujet = { onDeleteSujet(s1, false) },
+                            onDownloadCorrige = { onDownloadSujet(s1, true) },
+                            onOpenCorrige = { onOpenSujet(s1, true) },
+                            onStudyCorrigeWithAi = { onStudySujetWithAi(s1, true) },
+                            onShareCorrige = { onShareSujet(s1, true) },
+                            onDeleteCorrige = { onDeleteSujet(s1, true) },
+                            onReport = { onReportSujet(s1) },
                             modifier = Modifier.weight(1f)
                         )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
+
+                        if (rowPair.size > 1) {
+                            val s2 = rowPair[1]
+                            val s2Key = "sujet_${s2.id}"
+                            val corr2Key = "corrige_${s2.id}"
+                            SujetItemCard(
+                                sujet = s2,
+                                ue = ue,
+                                isSujetDownloaded = downloadedDocs.contains(s2Key),
+                                isCorrigeDownloaded = downloadedDocs.contains(corr2Key),
+                                sujetDownloadStatus = activeDownloads[s2Key] ?: DownloadStatus.Idle,
+                                corrigeDownloadStatus = activeDownloads[corr2Key] ?: DownloadStatus.Idle,
+                                onDownloadSujet = { onDownloadSujet(s2, false) },
+                                onOpenSujet = { onOpenSujet(s2, false) },
+                                onStudySujetWithAi = { onStudySujetWithAi(s2, false) },
+                                onShareSujet = { onShareSujet(s2, false) },
+                                onDeleteSujet = { onDeleteSujet(s2, false) },
+                                onDownloadCorrige = { onDownloadSujet(s2, true) },
+                                onOpenCorrige = { onOpenSujet(s2, true) },
+                                onStudyCorrigeWithAi = { onStudySujetWithAi(s2, true) },
+                                onShareCorrige = { onShareSujet(s2, true) },
+                                onDeleteCorrige = { onDeleteSujet(s2, true) },
+                                onReport = { onReportSujet(s2) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
+                }
+            } else {
+                sujetList.forEach { s ->
+                    val sKey = "sujet_${s.id}"
+                    val corrKey = "corrige_${s.id}"
+                    SujetItemCard(
+                        sujet = s,
+                        ue = ue,
+                        isSujetDownloaded = downloadedDocs.contains(sKey),
+                        isCorrigeDownloaded = downloadedDocs.contains(corrKey),
+                        sujetDownloadStatus = activeDownloads[sKey] ?: DownloadStatus.Idle,
+                        corrigeDownloadStatus = activeDownloads[corrKey] ?: DownloadStatus.Idle,
+                        onDownloadSujet = { onDownloadSujet(s, false) },
+                        onOpenSujet = { onOpenSujet(s, false) },
+                        onStudySujetWithAi = { onStudySujetWithAi(s, false) },
+                        onShareSujet = { onShareSujet(s, false) },
+                        onDeleteSujet = { onDeleteSujet(s, false) },
+                        onDownloadCorrige = { onDownloadSujet(s, true) },
+                        onOpenCorrige = { onOpenSujet(s, true) },
+                        onStudyCorrigeWithAi = { onStudySujetWithAi(s, true) },
+                        onShareCorrige = { onShareSujet(s, true) },
+                        onDeleteCorrige = { onDeleteSujet(s, true) },
+                        onReport = { onReportSujet(s) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -773,29 +925,21 @@ private fun SearchErrorBox(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.WifiOff,
                 contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
+                modifier = Modifier.size(40.dp),
+                tint = Color.Gray
             )
             Text(
-                text = message,
-                fontSize = 14.sp,
+                text = "Connexion internet indisponible",
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Normal,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color.Gray
             )
-            Button(
-                onClick = onRetry,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Réessayer")
-            }
         }
     }
 }

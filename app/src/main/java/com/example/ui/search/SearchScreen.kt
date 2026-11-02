@@ -75,6 +75,39 @@ fun SearchScreen(
         }
     }
 
+    // Synchronisation du profil étudiant sauvegardé avec les filtres du ViewModel dès l'ouverture
+    LaunchedEffect(studentProfile.isConfigured, ecoles, filieres) {
+        if (studentProfile.isConfigured) {
+            val ecoleMatch = ecoles.find {
+                it.nom.equals(studentProfile.ecoleNom, ignoreCase = true) ||
+                (studentProfile.ecoleId != null && it.id == studentProfile.ecoleId)
+            } ?: studentProfile.ecoleNom?.let { nom ->
+                Ecole(id = studentProfile.ecoleId ?: 0, nom = nom, sigle = null)
+            }
+            if (ecoleMatch != null) {
+                viewModel.selectEcole(ecoleMatch)
+            }
+            val filiereMatch = filieres.find {
+                it.code.equals(studentProfile.filiereCode, ignoreCase = true) ||
+                it.nom.equals(studentProfile.filiereNom, ignoreCase = true)
+            } ?: studentProfile.filiereCode?.let { code ->
+                Filiere(
+                    id = studentProfile.filiereId ?: 0,
+                    code = code,
+                    nom = studentProfile.filiereNom ?: code,
+                    ecole_id = studentProfile.ecoleId,
+                    ecole_nom = studentProfile.ecoleNom
+                )
+            }
+            if (filiereMatch != null) {
+                viewModel.selectFiliere(filiereMatch)
+            }
+            if (studentProfile.niveau.isNotBlank() && studentProfile.niveau != "Tous") {
+                viewModel.selectNiveau(studentProfile.niveau)
+            }
+        }
+    }
+
     if (showOnboarding) {
         StudentOnboardingScreen(
             ecoles = ecoles,
@@ -118,11 +151,11 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 28.dp, vertical = 2.dp),
-                shape = RoundedCornerShape(20.dp),
+                    .padding(horizontal = 24.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp,
-                shadowElevation = 4.dp,
+                tonalElevation = 3.dp,
+                shadowElevation = 5.dp,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             ) {
                 NavigationBar(
@@ -130,7 +163,7 @@ fun SearchScreen(
                     tonalElevation = 0.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(64.dp)
                 ) {
                     // Page 1 : Recherche
                     NavigationBarItem(
@@ -140,13 +173,13 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = "Recherche",
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         },
                         label = {
                             Text(
                                 text = "Recherche",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium
                             )
                         },
@@ -167,13 +200,13 @@ fun SearchScreen(
                             Icon(
                                 imageVector = Icons.Default.Folder,
                                 contentDescription = "Enregistrés",
-                                modifier = Modifier.size(19.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         },
                         label = {
                             Text(
                                 text = "Enregistrés",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium
                             )
                         },

@@ -28,51 +28,73 @@ import com.example.data.model.Ecole
 import com.example.data.model.Filiere
 import com.example.data.preferences.StudentProfile
 
-// Établissements et filières de référence garantissant un choix complet immédiat
-private val DEFAULT_ECOLES = listOf(
-    Ecole(1, "Faculté des Sciences", "FS"),
-    Ecole(2, "Institut Universitaire de Technologie", "IUT"),
-    Ecole(3, "Faculté de Médecine et des Sciences Biomédicales", "FMSB"),
-    Ecole(4, "Faculté des Sciences Économiques et de Gestion", "FSEG"),
-    Ecole(5, "Faculté des Arts, Lettres et Sciences Humaines", "FALSH"),
-    Ecole(6, "Faculté des Sciences Juridiques et Politiques", "FSJP")
+// Établissements et filières réels existants dans Campus Edu (API v1)
+internal val EXISTING_ECOLES = listOf(
+    Ecole(id = 1, nom = "FS", sigle = "FS", description = "Faculté des Sciences"),
+    Ecole(id = 2, nom = "FMSB", sigle = "FMSB", description = "Faculté de Médecine et des Sciences Biomédicales")
 )
 
-private val DEFAULT_FILIERES = listOf(
-    // FS
-    Filiere(101, "INF", "Informatique", ecole_id = 1, ecole_nom = "Faculté des Sciences"),
-    Filiere(102, "MATH", "Mathématiques", ecole_id = 1, ecole_nom = "Faculté des Sciences"),
-    Filiere(103, "PHY", "Physique", ecole_id = 1, ecole_nom = "Faculté des Sciences"),
-    Filiere(104, "CHIM", "Chimie", ecole_id = 1, ecole_nom = "Faculté des Sciences"),
-    Filiere(105, "BIO", "Biologie", ecole_id = 1, ecole_nom = "Faculté des Sciences"),
-    // IUT
-    Filiere(201, "GL", "Génie Logiciel", ecole_id = 2, ecole_nom = "Institut Universitaire de Technologie"),
-    Filiere(202, "RIM", "Réseaux et Télécoms", ecole_id = 2, ecole_nom = "Institut Universitaire de Technologie"),
-    Filiere(203, "GEII", "Génie Électrique", ecole_id = 2, ecole_nom = "Institut Universitaire de Technologie"),
-    // FMSB
-    Filiere(301, "MED", "Médecine Générale", ecole_id = 3, ecole_nom = "Faculté de Médecine et des Sciences Biomédicales"),
-    Filiere(302, "PHARM", "Pharmacie", ecole_id = 3, ecole_nom = "Faculté de Médecine et des Sciences Biomédicales"),
-    // FSEG
-    Filiere(401, "ECO", "Sciences Économiques", ecole_id = 4, ecole_nom = "Faculté des Sciences Économiques et de Gestion"),
-    Filiere(402, "GEST", "Gestion & Finance", ecole_id = 4, ecole_nom = "Faculté des Sciences Économiques et de Gestion"),
-    // FSJP
-    Filiere(601, "DROIT", "Droit Privé & Public", ecole_id = 6, ecole_nom = "Faculté des Sciences Juridiques et Politiques")
+internal val EXISTING_FILIERES = listOf(
+    // Faculté des Sciences (FS - ecole_id = 1)
+    Filiere(id = 1, code = "INF", nom = "Informatique", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Mathematique et Informatique"),
+    Filiere(id = 2, code = "MAT", nom = "Mathématiques", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Mathematique et Informatique"),
+    Filiere(id = 3, code = "CHI", nom = "Chimie", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Chimie"),
+    Filiere(id = 4, code = "PHY", nom = "Physique", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Physique"),
+    Filiere(id = 5, code = "ERN", nom = "Energie Renouvelable", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Energie_renouvelable"),
+    Filiere(id = 6, code = "BIO", nom = "Biologie", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Sciences_Biologie_et_de_la_terre"),
+    Filiere(id = 7, code = "STE", nom = "Sciences de la Terre", ecole_id = 1, ecole_nom = "FS", ecole = "FS", departement = "Sciences_Biologie_et_de_la_terre"),
+
+    // Faculté de Médecine et des Sciences Biomédicales (FMSB - ecole_id = 2)
+    Filiere(id = 11, code = "MED", nom = "Médecine Générale", ecole_id = 2, ecole_nom = "FMSB", ecole = "FMSB", departement = "Medecine Generale"),
+    Filiere(id = 10, code = "RIM", nom = "Radiologie et Imagerie Médicale", ecole_id = 2, ecole_nom = "FMSB", ecole = "FMSB", departement = "Sciences_Biomedicale"),
+    Filiere(id = 9, code = "SIN", nom = "Sciences Infirmières", ecole_id = 2, ecole_nom = "FMSB", ecole = "FMSB", departement = "Sciences_Biomedicale"),
+    Filiere(id = 8, code = "SBM", nom = "Sciences Biomédicales", ecole_id = 2, ecole_nom = "FMSB", ecole = "FMSB", departement = "Sciences_Biomedicale")
 )
 
-private fun filterFilieresForEcole(ecole: Ecole?, allFilieres: List<Filiere>): List<Filiere> {
-    if (ecole == null) return allFilieres
-    val filtered = allFilieres.filter { f ->
-        (ecole.id > 0 && f.ecole_id == ecole.id) ||
-        (!f.ecole_nom.isNullOrBlank() && f.ecole_nom.equals(ecole.nom, ignoreCase = true)) ||
-        (ecole.nom.isNotBlank() && !f.ecole_nom.isNullOrBlank() && (ecole.nom.contains(f.ecole_nom, ignoreCase = true) || f.ecole_nom.contains(ecole.nom, ignoreCase = true))) ||
-        (!ecole.sigle.isNullOrBlank() && !f.ecole_nom.isNullOrBlank() && (ecole.sigle.equals(f.ecole_nom, ignoreCase = true) || f.ecole_nom.contains(ecole.sigle, ignoreCase = true)))
+val Ecole.displayName: String
+    get() = when (nom.uppercase().trim()) {
+        "FS" -> "Faculté des Sciences (FS)"
+        "FMSB" -> "Faculté de Médecine et des Sciences Biomédicales (FMSB)"
+        else -> if (!sigle.isNullOrBlank() && sigle != nom) "$nom ($sigle)" else nom
     }
-    return if (filtered.isNotEmpty()) filtered else allFilieres
+
+internal fun filterFilieresForEcole(ecole: Ecole?, allFilieres: List<Filiere>): List<Filiere> {
+    if (ecole == null) return allFilieres
+    val isFS = ecole.id == 1 || ecole.nom.equals("FS", ignoreCase = true) || ecole.nom.contains("Sciences", ignoreCase = true)
+    val isFMSB = ecole.id == 2 || ecole.nom.equals("FMSB", ignoreCase = true) || ecole.nom.contains("Médecine", ignoreCase = true) || ecole.nom.contains("Medecine", ignoreCase = true)
+
+    val fsCodes = setOf("INF", "MAT", "MATH", "CHI", "PHY", "ERN", "BIO", "STE")
+    val fmsbCodes = setOf("MED", "RIM", "SIN", "SBM")
+
+    val matches = allFilieres.filter { f ->
+        val codeUpper = f.code.uppercase().trim()
+        when {
+            isFS -> (f.ecole_id != null && f.ecole_id == 1) ||
+                    f.ecole_nom.equals("FS", ignoreCase = true) ||
+                    f.ecole.equals("FS", ignoreCase = true) ||
+                    fsCodes.contains(codeUpper)
+            isFMSB -> (f.ecole_id != null && f.ecole_id == 2) ||
+                    f.ecole_nom.equals("FMSB", ignoreCase = true) ||
+                    f.ecole.equals("FMSB", ignoreCase = true) ||
+                    fmsbCodes.contains(codeUpper)
+            else -> (ecole.id > 0 && f.ecole_id == ecole.id) ||
+                    (!f.ecole_nom.isNullOrBlank() && f.ecole_nom.equals(ecole.nom, ignoreCase = true))
+        }
+    }
+
+    return if (matches.isNotEmpty()) {
+        matches
+    } else {
+        EXISTING_FILIERES.filter { f ->
+            val codeUpper = f.code.uppercase().trim()
+            if (isFMSB) fmsbCodes.contains(codeUpper) else fsCodes.contains(codeUpper)
+        }
+    }
 }
 
 /**
  * Formulaire d'accueil et de sélection de profil étudiant.
- * Fiabilisé pour permettre une sélection fluide et sans blocage sous toute condition réseau.
+ * Affiche UNIQUEMENT les écoles et filières existantes sur la plateforme Campus Edu.
  */
 @Composable
 fun StudentOnboardingScreen(
@@ -83,32 +105,39 @@ fun StudentOnboardingScreen(
     onDismiss: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    // Fusion avec les listes de repli pour ne jamais avoir de sélection vide
+    // Affiche uniquement les écoles existantes (FS et FMSB)
     val effectiveEcoles = remember(ecoles) {
-        if (ecoles.isNotEmpty()) {
-            val list = ecoles.toMutableList()
-            DEFAULT_ECOLES.forEach { def ->
-                if (!list.any { it.nom.equals(def.nom, ignoreCase = true) || it.id == def.id }) {
-                    list.add(def)
-                }
-            }
-            list
-        } else {
-            DEFAULT_ECOLES
+        val list = ecoles.filter { ecole ->
+            ecole.id == 1 || ecole.id == 2 ||
+            ecole.nom.equals("FS", ignoreCase = true) ||
+            ecole.nom.equals("FMSB", ignoreCase = true) ||
+            ecole.nom.contains("Sciences", ignoreCase = true) ||
+            ecole.nom.contains("Médecine", ignoreCase = true) ||
+            ecole.nom.contains("Medecine", ignoreCase = true)
         }
+        if (list.isNotEmpty()) list else EXISTING_ECOLES
     }
 
+    // Affiche uniquement les filières existantes
     val effectiveFilieres = remember(filieres) {
-        if (filieres.isNotEmpty()) {
-            val list = filieres.toMutableList()
-            DEFAULT_FILIERES.forEach { def ->
-                if (!list.any { it.code.equals(def.code, ignoreCase = true) }) {
-                    list.add(def)
-                }
+        val existingCodes = setOf("INF", "MAT", "MATH", "CHI", "PHY", "ERN", "BIO", "STE", "MED", "RIM", "SIN", "SBM")
+        val list = filieres.filter { f ->
+            existingCodes.contains(f.code.uppercase().trim())
+        }
+        if (list.isNotEmpty()) {
+            list.map { f ->
+                val codeUpper = f.code.uppercase().trim()
+                val isFmsb = setOf("MED", "RIM", "SIN", "SBM").contains(codeUpper)
+                val targetId = if (isFmsb) 2 else 1
+                val targetNom = if (isFmsb) "FMSB" else "FS"
+                f.copy(
+                    ecole_id = f.ecole_id ?: targetId,
+                    ecole_nom = if (f.ecole_nom.isNullOrBlank()) targetNom else f.ecole_nom,
+                    ecole = if (f.ecole.isNullOrBlank()) targetNom else f.ecole
+                )
             }
-            list
         } else {
-            DEFAULT_FILIERES
+            EXISTING_FILIERES
         }
     }
 
@@ -122,11 +151,20 @@ fun StudentOnboardingScreen(
         )
     }
 
+    LaunchedEffect(effectiveEcoles) {
+        if (selectedEcole == null) {
+            selectedEcole = effectiveEcoles.find {
+                it.id == initialProfile.ecoleId ||
+                (!initialProfile.ecoleNom.isNullOrBlank() && it.nom.equals(initialProfile.ecoleNom, ignoreCase = true))
+            } ?: effectiveEcoles.firstOrNull()
+        }
+    }
+
     val currentFilieres = remember(selectedEcole, effectiveFilieres) {
         filterFilieresForEcole(selectedEcole, effectiveFilieres)
     }
 
-    var selectedFiliere by remember {
+    var selectedFiliere by remember(selectedEcole) {
         mutableStateOf(
             currentFilieres.find {
                 it.code.equals(initialProfile.filiereCode, ignoreCase = true) ||
@@ -135,12 +173,20 @@ fun StudentOnboardingScreen(
         )
     }
 
+    LaunchedEffect(selectedEcole, currentFilieres) {
+        if (selectedFiliere == null || !currentFilieres.any { it.code.equals(selectedFiliere?.code, ignoreCase = true) }) {
+            selectedFiliere = currentFilieres.find {
+                it.code.equals(initialProfile.filiereCode, ignoreCase = true)
+            } ?: currentFilieres.firstOrNull()
+        }
+    }
+
     fun onSelectEcole(newEcole: Ecole) {
         selectedEcole = newEcole
         val updatedFilieres = filterFilieresForEcole(newEcole, effectiveFilieres)
-        if (selectedFiliere == null || !updatedFilieres.any { it.code.equals(selectedFiliere?.code, ignoreCase = true) }) {
-            selectedFiliere = updatedFilieres.firstOrNull()
-        }
+        selectedFiliere = updatedFilieres.find {
+            it.code.equals(initialProfile.filiereCode, ignoreCase = true)
+        } ?: updatedFilieres.firstOrNull()
     }
 
     var selectedNiveau by remember { mutableStateOf(initialProfile.niveau.ifBlank { "L1" }) }
@@ -252,19 +298,11 @@ fun StudentOnboardingScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = selectedEcole?.nom ?: "Sélectionner une école",
+                                        text = selectedEcole?.displayName ?: "Sélectionner une école",
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = if (selectedEcole != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    if (!selectedEcole?.sigle.isNullOrBlank()) {
-                                        Text(
-                                            text = selectedEcole?.sigle.orEmpty(),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
                                 }
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
@@ -465,19 +503,11 @@ fun StudentOnboardingScreen(
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = ecole.nom,
+                                            text = ecole.displayName,
                                             fontSize = 14.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                         )
-                                        if (!ecole.sigle.isNullOrBlank()) {
-                                            Text(
-                                                text = ecole.sigle.orEmpty(),
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                            )
-                                        }
                                     }
                                     if (isSelected) {
                                         Icon(

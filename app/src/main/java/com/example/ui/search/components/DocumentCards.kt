@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.*
 import com.example.data.repository.DownloadStatus
+import com.example.ui.theme.PlusJakartaSansFontFamily
 
 fun extractFileExtension(chemin: String?, nomOriginal: String?, defaultType: String?): String {
     val fromOriginal = nomOriginal?.substringAfterLast('.', "")?.trim()?.lowercase()
@@ -55,7 +56,7 @@ fun formatDownloadSpeed(speedKBps: Double, progress: Int): String {
 
 /**
  * Logo de format de fichier (PDF par défaut ou si inconnu)
- * Conçu de gauche à droite pour un format horizontal compact.
+ * Conçu avec une police moderne, nette et proportionnée.
  */
 @Composable
 fun FileLogoBadge(
@@ -73,23 +74,23 @@ fun FileLogoBadge(
     }
 
     val containerColor = when {
-        isPdf -> Color(0xFF450A0A).copy(alpha = 0.5f)
-        extension.contains("doc") -> Color(0xFF172554).copy(alpha = 0.5f)
-        extension.contains("ppt") -> Color(0xFF431407).copy(alpha = 0.5f)
-        extension.contains("xls") -> Color(0xFF064E3B).copy(alpha = 0.5f)
-        else -> Color(0xFF450A0A).copy(alpha = 0.5f)
+        isPdf -> Color(0xFF450A0A).copy(alpha = 0.45f)
+        extension.contains("doc") -> Color(0xFF172554).copy(alpha = 0.45f)
+        extension.contains("ppt") -> Color(0xFF431407).copy(alpha = 0.45f)
+        extension.contains("xls") -> Color(0xFF064E3B).copy(alpha = 0.45f)
+        else -> Color(0xFF450A0A).copy(alpha = 0.45f)
     }
 
     Surface(
-        modifier = modifier.size(width = 38.dp, height = 46.dp),
-        shape = RoundedCornerShape(topStart = 6.dp, topEnd = 12.dp, bottomStart = 6.dp, bottomEnd = 6.dp),
+        modifier = modifier.size(width = 34.dp, height = 42.dp),
+        shape = RoundedCornerShape(topStart = 6.dp, topEnd = 10.dp, bottomStart = 6.dp, bottomEnd = 6.dp),
         color = containerColor,
         border = BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 3.dp),
+                .padding(vertical = 2.5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -97,18 +98,20 @@ fun FileLogoBadge(
                 imageVector = if (isPdf) Icons.Default.PictureAsPdf else Icons.Default.Description,
                 contentDescription = if (isPdf) "Logo PDF" else "Fichier $extension",
                 tint = badgeColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(17.dp)
             )
 
             Surface(
-                shape = RoundedCornerShape(3.dp),
+                shape = RoundedCornerShape(2.5.dp),
                 color = badgeColor
             ) {
                 Text(
                     text = if (isPdf) "PDF" else extension.uppercase().take(3),
-                    fontSize = 8.sp,
+                    fontFamily = PlusJakartaSansFontFamily,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
+                    letterSpacing = 0.4.sp,
                     modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
                 )
             }
@@ -117,11 +120,10 @@ fun FileLogoBadge(
 }
 
 /**
- * Carte de cours horizontale (plus de largeur que de hauteur) :
- *  - De gauche à droite : Logo d'extension, puis Nom du document sans .pdf
- *  - Vitesse affichée à gauche du nom sans déformer le composant
- *  - Téléchargement direct au clic sans bouton
- *  - Aucun effet de survol / hover
+ * Carte de cours horizontale :
+ *  - Typographie moderne Plus Jakarta Sans plus grande et claire
+ *  - De gauche à droite : Logo d'extension, Titre lisible, Badges informatifs
+ *  - Téléchargement direct au clic sans bouton superflu
  */
 @Composable
 fun CoursItemCard(
@@ -147,6 +149,7 @@ fun CoursItemCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 62.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
@@ -157,23 +160,23 @@ fun CoursItemCard(
             .semantics { contentDescription = "Cours $displayTitle" },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Gauche : Logo de l'extension (PDF ou autre)
+            // 1. Gauche : Logo du format de fichier
             FileLogoBadge(
                 extension = extension
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // 2. Centre : Titre du cours + Badges (taille, année)
+            // 2. Centre : Titre du cours moderne + Badges
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
@@ -187,11 +190,12 @@ fun CoursItemCard(
                         Surface(
                             shape = RoundedCornerShape(3.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.padding(end = 6.dp)
+                            modifier = Modifier.padding(end = 5.dp)
                         ) {
                             Text(
                                 text = speedText,
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -201,15 +205,18 @@ fun CoursItemCard(
 
                     Text(
                         text = displayTitle,
-                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSansFontFamily,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = 0.1.sp,
+                        lineHeight = 18.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Badges d'information : taille & année
+                // Badges d'information : taille & année avec police agrandie et moderne
                 Row(
                     modifier = Modifier.padding(top = 3.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -218,28 +225,32 @@ fun CoursItemCard(
                     val taille = cours.tailleLisible
                     if (!taille.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                         ) {
                             Text(
                                 text = taille,
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
                     }
                     val annee = cours.anneeAcademique
                     if (!annee.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                         ) {
                             Text(
                                 text = annee,
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
                     }
@@ -253,7 +264,7 @@ fun CoursItemCard(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Téléchargé",
                     tint = Color(0xFF10B981),
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
@@ -262,10 +273,11 @@ fun CoursItemCard(
 
 /**
  * Carte d'épreuve d'examen horizontale :
- *  - Logo d'extension à gauche
- *  - Nom du sujet sans .pdf
+ *  - Typographie moderne Plus Jakarta Sans agrandie et aérée
+ *  - Logo d'extension net
+ *  - Nom du sujet bien visible
  *  - Badges : Année, Session, Corrigé, Taille
- *  - Bouton "Signaler" et statut de téléchargement
+ *  - Bouton Signaler accessible
  */
 @Composable
 fun SujetItemCard(
@@ -299,6 +311,7 @@ fun SujetItemCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 62.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null
@@ -309,23 +322,23 @@ fun SujetItemCard(
             .semantics { contentDescription = "Épreuve $displayTitle" },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Gauche : Logo de l'extension
+            // 1. Gauche : Logo du format de fichier
             FileLogoBadge(
                 extension = extension
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // 2. Centre : Titre + Badges (année, session, corrigé, taille)
+            // 2. Centre : Titre moderne + Badges (année, session, corrigé, taille)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
@@ -339,11 +352,12 @@ fun SujetItemCard(
                         Surface(
                             shape = RoundedCornerShape(3.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.padding(end = 6.dp)
+                            modifier = Modifier.padding(end = 5.dp)
                         ) {
                             Text(
                                 text = speedText,
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
@@ -353,15 +367,18 @@ fun SujetItemCard(
 
                     Text(
                         text = displayTitle,
-                        fontSize = 12.sp,
+                        fontFamily = PlusJakartaSansFontFamily,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = 0.1.sp,
+                        lineHeight = 18.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Badges descriptifs : Année, Session, Corrigé, Taille
+                // Badges descriptifs modernes et lisibles
                 Row(
                     modifier = Modifier.padding(top = 3.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -370,44 +387,48 @@ fun SujetItemCard(
                     val annee = sujet.anneeAcademique
                     if (!annee.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                         ) {
                             Text(
                                 text = annee,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
                     }
 
                     if (!sujet.session.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                         ) {
                             Text(
                                 text = sujet.session,
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
                     }
 
                     if (sujet.hasCorrige) {
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = Color(0xFF10B981).copy(alpha = 0.15f)
                         ) {
                             Text(
                                 text = "Corrigé",
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF10B981),
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
                     }
@@ -415,14 +436,16 @@ fun SujetItemCard(
                     val taille = sujet.tailleLisible
                     if (!taille.isNullOrBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(3.dp),
+                            shape = RoundedCornerShape(4.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ) {
                             Text(
                                 text = taille,
-                                fontSize = 9.sp,
+                                fontFamily = PlusJakartaSansFontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                             )
                         }
                     }
@@ -430,10 +453,13 @@ fun SujetItemCard(
             }
 
             // 3. Droite : Bouton Signaler & Statut téléchargé
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 IconButton(
                     onClick = onReport,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(26.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Flag,
@@ -444,12 +470,11 @@ fun SujetItemCard(
                 }
 
                 if (isSujetDownloaded) {
-                    Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = "Téléchargé",
                         tint = Color(0xFF10B981),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

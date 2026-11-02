@@ -36,6 +36,7 @@ import com.example.data.preferences.StudentProfileManager
 import com.example.data.repository.LocalDownloadedDocument
 import com.example.ui.search.SearchViewModel
 import com.example.ui.search.components.FileLogoBadge
+import com.example.ui.theme.PlusJakartaSansFontFamily
 
 /**
  * Modèle de données pour les documents enregistrés
@@ -359,20 +360,20 @@ private fun MosaicFolderCard(
 ) {
     Card(
         modifier = modifier
-            .height(90.dp)
+            .height(64.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 6.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -380,14 +381,14 @@ private fun MosaicFolderCard(
                 imageVector = Icons.Default.Folder,
                 contentDescription = "Dossier $code",
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(34.dp)
+                modifier = Modifier.size(24.dp)
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = code,
-                fontSize = 15.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
@@ -400,7 +401,7 @@ private fun MosaicFolderCard(
 
 /**
  * Ligne de fichier téléchargé :
- * Logo extension à gauche, nom sans .pdf au centre, actions Lire / IA / Supprimer.
+ * Format compact synchronisé (54dp) occupant le minimum d'espace vertical.
  */
 @Composable
 private fun FileListRow(
@@ -410,30 +411,38 @@ private fun FileListRow(
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 62.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FileLogoBadge(
                 extension = item.localDoc.file.extension
             )
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = item.localDoc.formattedTitle.replace(Regex("(?i)\\.pdf$"), "").trim(),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSansFontFamily,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = 0.1.sp,
+                    lineHeight = 18.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -441,48 +450,58 @@ private fun FileListRow(
                 if (item.meta.ueCode.isNotBlank() && item.meta.ueCode != "UE") {
                     Text(
                         text = item.meta.ueCode,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontFamily = PlusJakartaSansFontFamily,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 2.dp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = onOpen,
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.height(28.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
-                    ) {
-                        Text("Lire", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    FilledTonalButton(
-                        onClick = onOpenInAi,
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.height(28.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Ouvrir dans une IA", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
 
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "Supprimer", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onOpen,
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(28.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("Lire", fontFamily = PlusJakartaSansFontFamily, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                }
+
+                FilledTonalButton(
+                    onClick = onOpenInAi,
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(28.dp),
+                    contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(11.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("IA", fontFamily = PlusJakartaSansFontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Icon(
+                        Icons.Default.DeleteOutline,
+                        contentDescription = "Supprimer",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }

@@ -18,15 +18,81 @@ val MontserratFontFamily = FontFamily(
     Font(R.font.montserrat, FontWeight.Black)
 )
 
-// Typographie Material 3 standard de l'application
+// Police moderne Plus Jakarta Sans : géométrique, moderne et ultra-lisible pour documents et UI
+val PlusJakartaSansFontFamily = FontFamily(
+    Font(R.font.plus_jakarta_sans, FontWeight.Normal)
+)
+
+// Police moderne Inter : clarté optimale
+val InterFontFamily = FontFamily(
+    Font(R.font.inter, FontWeight.Normal)
+)
+
+// Typographie Material 3 moderne et lisible de l'application
 val Typography =
     Typography(
         bodyLarge =
             TextStyle(
-                fontFamily = FontFamily.Default,
+                fontFamily = PlusJakartaSansFontFamily,
                 fontWeight = FontWeight.Normal,
                 fontSize = 16.sp,
                 lineHeight = 24.sp,
+                letterSpacing = 0.5.sp,
+            ),
+        bodyMedium =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                letterSpacing = 0.25.sp,
+            ),
+        bodySmall =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 0.4.sp,
+            ),
+        titleMedium =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                lineHeight = 22.sp,
+                letterSpacing = 0.15.sp,
+            ),
+        titleSmall =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                letterSpacing = 0.1.sp,
+            ),
+        labelLarge =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                letterSpacing = 0.1.sp,
+            ),
+        labelMedium =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                letterSpacing = 0.5.sp,
+            ),
+        labelSmall =
+            TextStyle(
+                fontFamily = PlusJakartaSansFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
                 letterSpacing = 0.5.sp,
             ),
         headlineLarge =
